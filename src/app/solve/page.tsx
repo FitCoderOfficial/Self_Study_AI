@@ -108,7 +108,7 @@ export default function SolvePage() {
         existingResults.unshift(processedResult);
         localStorage.setItem('processedResults', JSON.stringify(existingResults));
 
-        router.push(`/result/${resultId}`);
+        router.push(`/new-question/${resultId}`);
       } else {
         setError(response.error || '이미지 처리 중 오류가 발생했습니다.');
       }
