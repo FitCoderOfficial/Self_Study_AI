@@ -1,0 +1,391 @@
+{
+    "designSystem": {
+      "meta": {
+        "sourceImage": "/mnt/data/573dbfb8-6a3c-4e09-b9dd-ff7265a1827a.png",
+        "grid": { "pagePadding": 24, "gutter": 16, "columnCount": 12, "maxWidth": 1200 },
+        "radii": { "xs": 6, "sm": 10, "md": 14, "lg": 18, "xl": 24, "pill": 999 },
+        "shadows": {
+          "card": "0 6px 20px rgba(17,24,39,0.06)",
+          "popover": "0 10px 30px rgba(17,24,39,0.10)",
+          "button": "0 2px 6px rgba(17,24,39,0.06)"
+        }
+      },
+  
+      "palette": {
+        "canvas": { "peach": "#FED0A4" },
+        "surfaces": {
+          "app": "#F0F0EF",
+          "card": "#FFFFFF",
+          "subtle": "#F4F4F5"
+        },
+        "brand": {
+          "primary": "#7D7CF5",
+          "primaryHover": "#6C6AF0",
+          "primaryActive": "#5A58E8",
+          "primarySurface": "#EDEBFF"
+        },
+        "accent": {
+          "success": "#22C55E",
+          "warning": "#F59E0B",
+          "info": "#38BDF8",
+          "danger": "#EF4444"
+        },
+        "neutral": {
+          "inkStrong": "#111827",
+          "ink": "#374151",
+          "inkMuted": "#6B7280",
+          "inkMeta": "#9CA3AF",
+          "line": "#E5E7EB",
+          "lineStrong": "#D1D5DB",
+          "inverse": "#FFFFFF",
+          "solidDark": "#111827"
+        }
+      },
+  
+      "accessibility": {
+        "contrastChecks": {
+          "white_on_black": { "ratio": 17.74, "wcag": "AAA" },
+          "inkStrong_on_white": { "ratio": 17.74, "wcag": "AAA" },
+          "inkMuted_on_white": { "ratio": 4.83, "wcag": "AA" },
+          "meta_on_white": { "ratio": 2.54, "wcag": "Fail (use only for non-essential hints)" },
+          "white_on_brandPrimary": { "ratio": 3.46, "wcag": "AA for 18pt+/bold; otherwise increase contrast" }
+        },
+        "guidelines": [
+          "Prefer #6C6AF0 for brand backgrounds if body-size white text is required (aim for ≥4.5:1).",
+          "Use #374151 or darker on white surfaces for body copy to maintain ≥4.5:1."
+        ]
+      },
+  
+      "componentStyles": {
+        "appShell": {
+          "outerCanvas": { "surfaceColor": "#FED0A4" },
+          "frame": {
+            "surfaceColor": "#F0F0EF",
+            "borderTreatment": "none",
+            "elevationShadow": "none"
+          },
+          "topbar": {
+            "surfaceColor": "#FFFFFF",
+            "borderTreatment": "#E5E7EB",
+            "elevationShadow": "0 2px 8px rgba(17,24,39,0.04)",
+            "typographyColor": "#374151",
+            "iconColor": "#6B7280"
+          }
+        },
+  
+        "sidebarNav": {
+          "container": {
+            "surfaceColor": "#FFFFFF",
+            "borderTreatment": "#E5E7EB",
+            "elevationShadow": "0 2px 8px rgba(17,24,39,0.04)"
+          },
+          "item": {
+            "default": {
+              "textColor": "#374151",
+              "iconColor": "#6B7280",
+              "surfaceColor": "transparent"
+            },
+            "hover": {
+              "textColor": "#111827",
+              "iconColor": "#374151",
+              "surfaceColor": "#F4F4F5"
+            },
+            "active": {
+              "textColor": "#FFFFFF",
+              "iconColor": "#FFFFFF",
+              "surfaceColor": "#7D7CF5"
+            },
+            "disabled": {
+              "textColor": "#9CA3AF",
+              "iconColor": "#9CA3AF",
+              "surfaceColor": "transparent"
+            },
+            "focus": { "outline": "0 0 0 3px rgba(125,124,245,0.35)" }
+          },
+          "pill": { "radius": 12, "paddingX": 14, "paddingY": 10 }
+        },
+  
+        "searchInput": {
+          "container": {
+            "surfaceColor": "#FFFFFF",
+            "borderTreatment": "#E5E7EB",
+            "radius": 999,
+            "elevationShadow": "inset 0 0 0 1px rgba(0,0,0,0.02)"
+          },
+          "textColor": "#374151",
+          "placeholderColor": "#9CA3AF",
+          "iconColor": "#9CA3AF",
+          "states": {
+            "hover": { "borderTreatment": "#D1D5DB" },
+            "focus": {
+              "borderTreatment": "#7D7CF5",
+              "ring": "0 0 0 3px rgba(125,124,245,0.25)"
+            },
+            "disabled": { "surfaceColor": "#F4F4F5", "textColor": "#9CA3AF" }
+          }
+        },
+  
+        "statKPI": {
+          "card": {
+            "surfaceColor": "#FFFFFF",
+            "borderTreatment": "#E5E7EB",
+            "radius": 14,
+            "elevationShadow": "0 6px 20px rgba(17,24,39,0.06)"
+          },
+          "titleColor": "#6B7280",
+          "valueColor": "#111827",
+          "iconContainer": {
+            "shape": "circle",
+            "surfaceColor": "#F4F4F5",
+            "iconColor": "#374151"
+          },
+          "accentDots": {
+            "inProgress": "#F59E0B",
+            "completed": "#22C55E",
+            "certs": "#38BDF8",
+            "community": "#7D7CF5"
+          }
+        },
+  
+        "tables": {
+          "header": { "textColor": "#6B7280", "divider": "#E5E7EB", "surfaceColor": "#FFFFFF" },
+          "row": {
+            "surfaceColor": "#FFFFFF",
+            "hoverSurface": "#F9FAFB",
+            "divider": "#F3F4F6",
+            "textColor": "#374151",
+            "metaColor": "#6B7280"
+          },
+          "avatar": { "border": "#FFFFFF", "shadow": "0 1px 2px rgba(17,24,39,0.08)" }
+        },
+  
+        "cards": {
+          "base": {
+            "surfaceColor": "#FFFFFF",
+            "borderTreatment": "#E5E7EB",
+            "radius": 18,
+            "elevationShadow": "0 6px 20px rgba(17,24,39,0.06)"
+          },
+          "listTile": {
+            "hover": { "surfaceColor": "#F9FAFB" },
+            "active": { "surfaceColor": "#F4F4F5" }
+          },
+          "badge": {
+            "neutral": { "textColor": "#374151", "surfaceColor": "#F4F4F5" },
+            "brand": { "textColor": "#7D7CF5", "surfaceColor": "#EDEBFF" }
+          }
+        },
+  
+        "actionControls": {
+          "primary": {
+            "surfaceColor": "#111827",
+            "textColor": "#FFFFFF",
+            "iconColor": "#FFFFFF",
+            "radius": 999,
+            "interactionStates": {
+              "hoverSurface": "#0F172A",
+              "activeSurface": "#0B1220",
+              "focusRing": "0 0 0 3px rgba(17,24,39,0.25)",
+              "disabledSurface": "#E5E7EB",
+              "disabledText": "#9CA3AF"
+            }
+          },
+          "brand": {
+            "surfaceColor": "#7D7CF5",
+            "textColor": "#FFFFFF",
+            "interactionStates": {
+              "hoverSurface": "#6C6AF0",
+              "activeSurface": "#5A58E8",
+              "focusRing": "0 0 0 3px rgba(125,124,245,0.35)"
+            }
+          },
+          "secondary": {
+            "surfaceColor": "#FFFFFF",
+            "textColor": "#374151",
+            "borderTreatment": "#E5E7EB",
+            "interactionStates": {
+              "hoverSurface": "#F9FAFB",
+              "activeSurface": "#F4F4F5"
+            }
+          },
+          "ghost": {
+            "surfaceColor": "transparent",
+            "textColor": "#374151",
+            "interactionStates": { "hoverSurface": "#F9FAFB", "activeSurface": "#F4F4F5" }
+          },
+          "chip": {
+            "surfaceColor": "#F4F4F5",
+            "textColor": "#374151",
+            "selected": { "surfaceColor": "#EDEBFF", "textColor": "#7D7CF5", "border": "#7D7CF5" }
+          }
+        },
+  
+        "badges": {
+          "success": { "textColor": "#166534", "surfaceColor": "#DCFCE7", "iconColor": "#22C55E" },
+          "warning": { "textColor": "#92400E", "surfaceColor": "#FEF3C7", "iconColor": "#F59E0B" },
+          "info": { "textColor": "#075985", "surfaceColor": "#E0F2FE", "iconColor": "#38BDF8" },
+          "danger": { "textColor": "#7F1D1D", "surfaceColor": "#FEE2E2", "iconColor": "#EF4444" }
+        },
+  
+        "inputs": {
+          "checkbox": {
+            "box": { "border": "#D1D5DB", "surfaceColor": "#FFFFFF", "radius": 6 },
+            "checked": { "background": "#7D7CF5", "checkmark": "#FFFFFF" },
+            "focus": { "ring": "0 0 0 3px rgba(125,124,245,0.30)" },
+            "disabled": { "border": "#E5E7EB", "surfaceColor": "#F4F4F5" }
+          }
+        },
+  
+        "lists": {
+          "upcomingItem": {
+            "container": { "surfaceColor": "#FFFFFF", "radius": 14, "divider": "#F3F4F6" },
+            "iconWrap": { "surfaceColor": "#F9FAFB", "radius": 12 },
+            "titleColor": "#111827",
+            "metaColor": "#6B7280",
+            "chevronColor": "#9CA3AF",
+            "hover": { "surfaceColor": "#F9FAFB" }
+          }
+        },
+  
+        "avatars": {
+          "size": { "sm": 20, "md": 28, "lg": 36 },
+          "border": "#FFFFFF",
+          "shadow": "0 1px 2px rgba(17,24,39,0.08)"
+        }
+      },
+  
+      "contextualStyling": {
+        "rules": [
+          "Navigation containers use solid brand color (#7D7CF5) for active items; content cards keep solid white surfaces.",
+          "Primary call-to-action in side panels uses dark solid (#111827) with white text; secondary utility buttons use white with gray border.",
+          "System icons (navigation, actions) inherit neutral grays; decorative illustrations stay within cards and never adopt brand fills.",
+          "Do not apply card shadows to inner content; shadows belong to outer containers only.",
+          "Typography color hierarchy: headings #111827, body #374151, secondary #6B7280, tertiary/meta #9CA3AF."
+        ],
+        "hierarchy": {
+          "parents": {
+            "card": { "childrenInheritRadius": true, "childrenInheritShadow": false },
+            "sidebar": { "itemsInheritTypography": true }
+          },
+          "overrides": {
+            "badgeInsideCard": "Badge surface overrides card background to tokenized semantic surface.",
+            "activeNavItem": "Text/icon colors override inherited neutral values to inverse on brand."
+          },
+          "responsive": {
+            "≤768": {
+              "gridGutter": 12,
+              "cardRadius": 14,
+              "shadowReduce": "0 4px 14px rgba(17,24,39,0.06)"
+            }
+          },
+          "stateDependent": {
+            "focusVisible": "Show 3px focus ring using brand or dark neutral depending on control style.",
+            "disabled": "Reduce opacity to 60% and set cursor to not-allowed; never change layout."
+          }
+        }
+      },
+  
+      "visualEffects": {
+        "shadowsMap": {
+          "cards": "card",
+          "sidePanels": "card",
+          "menus": "popover",
+          "buttons": "button"
+        },
+        "radiusMap": {
+          "cards": 18,
+          "listItems": 14,
+          "inputs": 12,
+          "pills": 12,
+          "buttons": 999
+        },
+        "animations": {
+          "buttonHover": { "transition": "background-color 160ms ease, transform 120ms ease", "scale": 1.02 },
+          "navActive": { "transition": "background-color 160ms ease" },
+          "tileHover": { "transition": "box-shadow 180ms ease, transform 160ms ease", "shadow": "0 10px 28px rgba(17,24,39,0.10)", "scale": 1.01 }
+        },
+        "layering": {
+          "zIndex": {
+            "base": 0,
+            "cards": 1,
+            "stickyTopbar": 100,
+            "dropdown": 1000,
+            "modal": 1100,
+            "toast": 1200
+          }
+        }
+      },
+  
+      "stateArchitecture": {
+        "buttons": {
+          "baseline": { "primaryDark": { "bg": "#111827", "text": "#FFFFFF" } },
+          "hover": { "primaryDark": { "bg": "#0F172A" } },
+          "active": { "primaryDark": { "bg": "#0B1220" } },
+          "focus": { "primaryDark": { "ring": "0 0 0 3px rgba(17,24,39,0.25)" } },
+          "disabled": { "primaryDark": { "bg": "#E5E7EB", "text": "#9CA3AF" } },
+          "loading": { "primaryDark": { "spinner": "#FFFFFF", "opacity": 0.9 } }
+        },
+        "navItem": {
+          "baseline": { "text": "#374151", "icon": "#6B7280", "bg": "transparent" },
+          "hover": { "text": "#111827", "bg": "#F4F4F5" },
+          "selected": { "text": "#FFFFFF", "bg": "#7D7CF5" },
+          "focus": { "ring": "0 0 0 3px rgba(125,124,245,0.35)" },
+          "disabled": { "text": "#9CA3AF", "icon": "#9CA3AF" }
+        },
+        "input": {
+          "baseline": { "bg": "#FFFFFF", "border": "#E5E7EB", "text": "#374151" },
+          "hover": { "border": "#D1D5DB" },
+          "focus": { "border": "#7D7CF5", "ring": "0 0 0 3px rgba(125,124,245,0.25)" },
+          "invalid": { "border": "#EF4444", "assistiveText": "#B91C1C" },
+          "disabled": { "bg": "#F4F4F5", "text": "#9CA3AF", "border": "#E5E7EB" },
+          "loading": { "cursor": "progress" }
+        },
+        "listTile": {
+          "baseline": { "bg": "#FFFFFF" },
+          "hover": { "bg": "#F9FAFB" },
+          "active": { "bg": "#F4F4F5" },
+          "focus": { "ring": "0 0 0 3px rgba(17,24,39,0.10)" }
+        }
+      },
+  
+      "colorApplicationMap": {
+        "containers": {
+          "outerCanvas": "#FED0A4",
+          "appSurface": "#F0F0EF",
+          "cardsAndPanels": "#FFFFFF",
+          "dividers": "#E5E7EB"
+        },
+        "typography": {
+          "h1_h2": "#111827",
+          "body": "#374151",
+          "secondary": "#6B7280",
+          "meta": "#9CA3AF",
+          "inverse": "#FFFFFF"
+        },
+        "icons": {
+          "system": "#6B7280",
+          "activeOnBrand": "#FFFFFF",
+          "onNeutralSurface": "#374151"
+        },
+        "overlays": {
+          "scrim": "rgba(17,24,39,0.45)",
+          "popoverBg": "#FFFFFF",
+          "popoverShadow": "0 10px 30px rgba(17,24,39,0.10)"
+        }
+      },
+  
+      "qualityAssurance": {
+        "avoid": [
+          "Applying card/container shadows to inner content elements.",
+          "Using brand text colors for generic body copy.",
+          "Placing gradient/brand fills on icons unless explicitly decorative."
+        ],
+        "ensure": [
+          "Consistent neutral text hierarchy across cards, lists, and tables.",
+          "Focus-visible rings for all interactive components.",
+          "Button text meets contrast requirements; switch to darker brand or dark neutral background when using white text at body sizes."
+        ]
+      }
+    }
+  }
+  
