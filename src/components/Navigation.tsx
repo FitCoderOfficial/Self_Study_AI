@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, Camera, BookOpen, User, LogOut, Calculator } from "lucide-react";
+import { Menu, X, Camera, BookOpen, User, LogOut } from "lucide-react";
 interface NavigationProps {
   isLoggedIn?: boolean;
   onLogin?: () => void;
@@ -51,13 +51,6 @@ export function Navigation({ isLoggedIn = false, onLogin, onLogout }: Navigation
             >
               <BookOpen className="w-4 h-4" />
               <span>질문 아카이브</span>
-            </Link>
-            <Link
-              href="/math-processor"
-              className="text-gray-700 dark:text-gray-300 hover:text-primary transition-colors flex items-center space-x-1"
-            >
-              <Calculator className="w-4 h-4" />
-              <span>수학 이미지 처리</span>
             </Link>
             <div className="flex items-center space-x-2">
               {isLoggedIn ? (
@@ -135,13 +128,6 @@ export function Navigation({ isLoggedIn = false, onLogin, onLogout }: Navigation
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 질문 아카이브
-              </Link>
-              <Link
-                href="/math-processor"
-                className="text-gray-700 hover:text-primary block px-3 py-2 rounded-md text-base font-medium"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                수학 이미지 처리
               </Link>
               {isLoggedIn ? (
                 <div className="pt-4 pb-3 border-t">

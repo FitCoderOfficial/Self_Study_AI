@@ -9,15 +9,6 @@ export interface ImageProcessResponse {
   error?: string;
 }
 
-export interface SimilarProblem {
-  newProblem: {
-    type: "text" | "image";
-    content: string;
-    choices?: string[];
-    answer: string;
-    explanation: string;
-  };
-}
 
 export interface QuestionItem {
   id: string;
@@ -61,66 +52,6 @@ export interface RecentActivity {
   difficulty: "easy" | "medium" | "hard";
 }
 
-// 유사 문제 생성 Mock API
-export const getMockSimilarProblem = async (problemId: string): Promise<SimilarProblem> => {
-  console.log(`Fetching similar problem for ID: ${problemId}`);
-  
-  // 1.5초의 딜레이를 주어 실제 네트워크 환경을 시뮬레이션
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
-  // 다양한 유형의 유사 문제 데이터
-  const similarProblems: SimilarProblem[] = [
-    {
-      newProblem: {
-        type: "text",
-        content: "이차방정식 x² - 5x + 6 = 0의 두 근을 α, β라고 할 때, α² + β²의 값은?",
-        choices: ["10", "13", "15", "19"],
-        answer: "13",
-        explanation: "이차방정식의 근과 계수의 관계에 의해 α+β=5, αβ=6 입니다. 따라서 α² + β² = (α+β)² - 2αβ = 5² - 2×6 = 25 - 12 = 13 입니다."
-      }
-    },
-    {
-      newProblem: {
-        type: "text",
-        content: "삼각함수 sin(30°) + cos(60°)의 값을 구하시오.",
-        choices: ["0", "1", "1/2", "√3/2"],
-        answer: "1",
-        explanation: "sin(30°) = 1/2, cos(60°) = 1/2 이므로 sin(30°) + cos(60°) = 1/2 + 1/2 = 1 입니다."
-      }
-    },
-    {
-      newProblem: {
-        type: "text",
-        content: "로그 log₂(8) + log₃(9)의 값을 구하시오.",
-        choices: ["3", "4", "5", "6"],
-        answer: "5",
-        explanation: "log₂(8) = log₂(2³) = 3, log₃(9) = log₃(3²) = 2 이므로 log₂(8) + log₃(9) = 3 + 2 = 5 입니다."
-      }
-    },
-    {
-      newProblem: {
-        type: "text",
-        content: "물의 끓는점에서 수증기 1몰의 부피는 몇 L인가? (표준상태 기준)",
-        choices: ["22.4", "30.6", "37.3", "44.8"],
-        answer: "30.6",
-        explanation: "물의 끓는점(100°C)에서 이상기체 법칙을 적용하면 V = nRT/P = 1×0.082×373/1 = 30.6L 입니다."
-      }
-    },
-    {
-      newProblem: {
-        type: "text",
-        content: "광합성에서 6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂ 반응에서 생성되는 포도당 1몰당 필요한 CO₂는 몇 몰인가?",
-        choices: ["3", "6", "9", "12"],
-        answer: "6",
-        explanation: "화학반응식에서 CO₂의 계수가 6이므로 포도당 1몰 생성에 CO₂ 6몰이 필요합니다."
-      }
-    }
-  ];
-  
-  // 문제 ID에 따라 다른 유사 문제 반환 (실제로는 랜덤하게 선택)
-  const randomIndex = Math.floor(Math.random() * similarProblems.length);
-  return similarProblems[randomIndex];
-};
 
 // 질문 아카이브용 Mock 데이터
 export const getMockQuestions = async (): Promise<QuestionItem[]> => {

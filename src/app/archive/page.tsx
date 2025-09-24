@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Navigation from "@/components/Navigation";
 import AccessibilityFeatures from "@/components/AccessibilityFeatures";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getMockQuestions, QuestionItem } from "@/api/mockData";
-import { BookOpen, CheckCircle, XCircle, Filter, ChevronDown, Archive, Download } from "lucide-react";
+import { BookOpen, CheckCircle, XCircle, Filter, Archive, Download } from "lucide-react";
 
 export default function ArchivePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
