@@ -12,14 +12,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, Camera, BookOpen, User, LogOut } from "lucide-react";
+import { Menu, X, Camera, BookOpen, User, LogOut, Calculator } from "lucide-react";
 interface NavigationProps {
   isLoggedIn?: boolean;
   onLogin?: () => void;
   onLogout?: () => void;
 }
 
-export default function Navigation({ isLoggedIn = false, onLogin, onLogout }: NavigationProps) {
+export function Navigation({ isLoggedIn = false, onLogin, onLogout }: NavigationProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
@@ -51,6 +51,13 @@ export default function Navigation({ isLoggedIn = false, onLogin, onLogout }: Na
             >
               <BookOpen className="w-4 h-4" />
               <span>질문 아카이브</span>
+            </Link>
+            <Link
+              href="/math-processor"
+              className="text-gray-700 dark:text-gray-300 hover:text-primary transition-colors flex items-center space-x-1"
+            >
+              <Calculator className="w-4 h-4" />
+              <span>수학 이미지 처리</span>
             </Link>
             <div className="flex items-center space-x-2">
               {isLoggedIn ? (
@@ -129,6 +136,13 @@ export default function Navigation({ isLoggedIn = false, onLogin, onLogout }: Na
               >
                 질문 아카이브
               </Link>
+              <Link
+                href="/math-processor"
+                className="text-gray-700 hover:text-primary block px-3 py-2 rounded-md text-base font-medium"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                수학 이미지 처리
+              </Link>
               {isLoggedIn ? (
                 <div className="pt-4 pb-3 border-t">
                   <div className="flex items-center px-3">
@@ -144,22 +158,6 @@ export default function Navigation({ isLoggedIn = false, onLogin, onLogout }: Na
                     </div>
                   </div>
                   <div className="mt-3 space-y-1">
-                    <button
-                      onClick={toggleTheme}
-                      className="text-gray-700 hover:text-primary flex items-center px-3 py-2 rounded-md text-base font-medium w-full text-left"
-                    >
-                      {theme === "dark" ? (
-                        <>
-                          <Sun className="w-4 h-4 mr-2" />
-                          라이트모드
-                        </>
-                      ) : (
-                        <>
-                          <Moon className="w-4 h-4 mr-2" />
-                          다크모드
-                        </>
-                      )}
-                    </button>
                     <Link
                       href="/profile"
                       className="text-gray-700 hover:text-primary block px-3 py-2 rounded-md text-base font-medium"
@@ -192,3 +190,5 @@ export default function Navigation({ isLoggedIn = false, onLogin, onLogout }: Na
     </nav>
   );
 }
+
+export default Navigation;

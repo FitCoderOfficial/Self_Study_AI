@@ -1,5 +1,14 @@
 // Mock Data API - 백엔드 연동 전까지 사용할 가상 데이터
 
+// 이미지 처리 API 타입 정의
+export interface ImageProcessResponse {
+  success: boolean;
+  data?: {
+    processedText: string;
+  };
+  error?: string;
+}
+
 export interface SimilarProblem {
   newProblem: {
     type: "text" | "image";
@@ -276,5 +285,36 @@ export const getMockLearningGoals = async () => {
       progress: 40
     }
   };
+};
+
+// 이미지 처리 Mock API - 수학 기호 렌더링용
+export const processImageMock = async (imageFile: File): Promise<ImageProcessResponse> => {
+  console.log("가상 API 호출 시작:", imageFile.name);
+
+  // 실제 네트워크 요청을 시뮬레이션하기 위해 2초간 대기
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  // 성공 시 반환할 가상 데이터
+  const mockSuccessData: ImageProcessResponse = {
+    success: true,
+    data: {
+      processedText: "이차방정식 $$x^2 - 5x + 6 = 0$$의 두 근을 \\(\\alpha, \\beta\\)라고 할 때, 다음 식의 값을 구하시오. $$\\frac{1}{\\alpha} + \\frac{1}{\\beta}$$"
+    }
+  };
+
+  // 실패 시 반환할 가상 데이터
+  const mockErrorData: ImageProcessResponse = {
+    success: false,
+    error: "이미지 인식에 실패했습니다. 더 선명한 이미지를 업로드해 주세요."
+  };
+
+  // 테스트를 위해 파일 이름에 'error'가 포함되면 일부러 실패 응답을 보냄
+  if (imageFile.name.toLowerCase().includes('error')) {
+    console.log("가상 API 호출 실패 응답 반환");
+    return mockErrorData;
+  } else {
+    console.log("가상 API 호출 성공 응답 반환");
+    return mockSuccessData;
+  }
 };
 
