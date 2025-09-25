@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Navigation from "@/components/Navigation";
 import AccessibilityFeatures from "@/components/AccessibilityFeatures";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Camera, Upload, FileImage, RotateCcw, CheckCircle, Sparkles, AlertCircle, Loader2 } from "lucide-react";
+import { Camera, Upload, FileImage, RotateCcw, CheckCircle, Sparkles, AlertCircle, Loader2, Clipboard } from "lucide-react";
 import { processImageWithMathpix } from "@/api/mockData";
 
 export default function SolvePage() {
@@ -18,6 +18,7 @@ export default function SolvePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [pasteActive, setPasteActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogin = () => setIsLoggedIn(true);
@@ -64,6 +65,50 @@ export default function SolvePage() {
       setError(null);
     }
   };
+
+  // 클립보드 붙여넣기 핸들러
+  const handlePaste = (e: ClipboardEvent) => {
+    e.preventDefault();
+    setPasteActive(true);
+    
+    const items = e.clipboardData?.items;
+    if (!items) {
+      setPasteActive(false);
+      return;
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        const blob = item.getAsFile();
+        if (blob) {
+          // Blob을 File 객체로 변환
+          const file = new File([blob], `pasted-image-${Date.now()}.png`, {
+            type: blob.type
+          });
+          
+          setSelectedFile(file);
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            setSelectedImage(e.target?.result as string);
+          };
+          reader.readAsDataURL(file);
+          setError(null);
+        }
+        break;
+      }
+    }
+    
+    setTimeout(() => setPasteActive(false), 300);
+  };
+
+  // 글로벌 paste 이벤트 리스너 설정
+  useEffect(() => {
+    document.addEventListener('paste', handlePaste);
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, []);
 
   // 파일 처리 함수
   const handleFileProcess = async (file: File) => {
@@ -169,7 +214,7 @@ export default function SolvePage() {
                 {!selectedImage ? (
                   <div 
                     className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors 
-                      ${dragActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : 'border-gray-300 hover:border-blue-400 dark:border-gray-700 dark:hover:border-blue-500'}`}
+                      ${dragActive || pasteActive ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : 'border-gray-300 hover:border-blue-400 dark:border-gray-700 dark:hover:border-blue-500'}`}
                     onDragEnter={handleDrag}
                     onDragLeave={handleDrag}
                     onDragOver={handleDrag}
@@ -183,6 +228,10 @@ export default function SolvePage() {
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300 mb-6">
                       파일을 드래그 앤 드롭하거나 아래 버튼을 클릭하세요
+                      <br />
+                      <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                        💡 Ctrl+V로 클립보드 이미지 붙여넣기도 가능합니다
+                      </span>
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                       <Button 
@@ -241,13 +290,10 @@ export default function SolvePage() {
                       {isProcessing ? (
                         <>
                           <Loader2 className="animate-spin h-5 w-5 mr-3" />
-                          Mathpix AI가 이미지를 분석 중...
+                          AI가 이미지를 분석 중...
                         </>
                       ) : (
-                        <>
-                          <Sparkles className="mr-3 h-5 w-5" />
-                          Mathpix AI 분석 시작
-                        </>
+                        "문제풀이 시작"
                       )}
                     </Button>
                   </div>
