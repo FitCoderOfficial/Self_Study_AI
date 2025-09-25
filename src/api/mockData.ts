@@ -218,7 +218,42 @@ export const getMockLearningGoals = async () => {
   };
 };
 
-// 이미지 처리 Mock API - 수학 기호 렌더링용
+// Mathpix API를 사용한 실제 이미지 처리 함수
+export const processImageWithMathpix = async (imageFile: File): Promise<ImageProcessResponse> => {
+  console.log("Mathpix API 호출 시작:", imageFile.name);
+
+  try {
+    const formData = new FormData();
+    formData.append('file', imageFile);
+
+    const response = await fetch('/api/mathpix', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+    
+    if (!response.ok) {
+      console.error("Mathpix API 호출 실패:", result);
+      return {
+        success: false,
+        error: result.error || '이미지 처리에 실패했습니다.'
+      };
+    }
+
+    console.log("Mathpix API 호출 성공:", result);
+    return result;
+
+  } catch (error) {
+    console.error("Mathpix API 네트워크 오류:", error);
+    return {
+      success: false,
+      error: '네트워크 오류가 발생했습니다. 다시 시도해주세요.'
+    };
+  }
+};
+
+// 이미지 처리 Mock API - 개발/테스트용 (backward compatibility)
 export const processImageMock = async (imageFile: File): Promise<ImageProcessResponse> => {
   console.log("가상 API 호출 시작:", imageFile.name);
 

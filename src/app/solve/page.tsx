@@ -8,7 +8,7 @@ import AccessibilityFeatures from "@/components/AccessibilityFeatures";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Camera, Upload, FileImage, RotateCcw, CheckCircle, Sparkles, AlertCircle, Loader2 } from "lucide-react";
-import { processImageMock } from "@/api/mockData";
+import { processImageWithMathpix } from "@/api/mockData";
 
 export default function SolvePage() {
   const router = useRouter();
@@ -88,7 +88,7 @@ export default function SolvePage() {
     reader.readAsDataURL(file);
 
     try {
-      const response = await processImageMock(file);
+      const response = await processImageWithMathpix(file);
 
       if (response.success && response.data) {
         const resultId = Date.now().toString();
@@ -145,10 +145,10 @@ export default function SolvePage() {
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-6">
             AI 문제 풀이
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
-            문제를 촬영하거나 업로드하면 AI가 정답과 상세한 해설을 제공합니다.
+                    <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
+            문제를 촬영하거나 업로드하면 <span className="font-semibold text-green-600 dark:text-green-400">Mathpix AI</span>가 수학 기호와 텍스트를 인식하여 정답과 상세한 해설을 제공합니다.
             <br className="hidden md:block" />
-            <span className="font-semibold text-blue-600 dark:text-blue-400">다양한 과목의 문제</span>를 처리할 수 있습니다!
+            <span className="font-semibold text-blue-600 dark:text-blue-400">수학, 물리, 화학 등의 문제</span>를 처리할 수 있습니다!
           </p>
         </div>
 
@@ -214,13 +214,13 @@ export default function SolvePage() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    <div className="relative group">
+                    <div className="relative group max-w-2xl mx-auto">
                       <Image
                         src={selectedImage}
                         alt="업로드된 문제"
                         width={800}
                         height={600}
-                        className="w-full h-auto rounded-xl border shadow-sm"
+                        className="w-full h-auto max-h-96 object-contain rounded-xl border shadow-sm"
                         unoptimized
                       />
                       <Button
@@ -241,12 +241,12 @@ export default function SolvePage() {
                       {isProcessing ? (
                         <>
                           <Loader2 className="animate-spin h-5 w-5 mr-3" />
-                          AI가 문제를 분석 중...
+                          Mathpix AI가 이미지를 분석 중...
                         </>
                       ) : (
                         <>
                           <Sparkles className="mr-3 h-5 w-5" />
-                          AI 분석 시작
+                          Mathpix AI 분석 시작
                         </>
                       )}
                     </Button>
@@ -301,19 +301,19 @@ export default function SolvePage() {
                     <CheckCircle className="w-4 h-4 text-green-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-gray-900 dark:text-gray-300 mb-3 text-lg">🎯 정확도 향상</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-300 mb-3 text-lg">🎯 Mathpix AI 인식 향상</h4>
                     <ul className="space-y-2 text-gray-600 dark:text-gray-300">
                       <li className="flex items-start">
                         <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                        수식이 있는 경우 특히 선명하게 촬영하세요
+                        수학 기호와 수식이 선명하게 보이도록 촬영하세요
                       </li>
                       <li className="flex items-start">
                         <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                        손글씨보다는 인쇄된 문제가 인식률이 높습니다
+                        인쇄된 문제가 손글씨보다 인식률이 높습니다
                       </li>
                       <li className="flex items-start">
                         <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                        다양한 과목의 문제를 처리할 수 있습니다
+                        LaTeX 형식의 수학 기호로 변환됩니다
                       </li>
                     </ul>
                   </div>

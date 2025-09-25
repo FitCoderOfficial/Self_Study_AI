@@ -14,8 +14,8 @@
 ## 🚀 주요 기능
 
 ### Phase 1: 핵심 기능
-- **문제 입력**: 스마트폰 카메라나 PC 웹캠을 통한 실시간 촬영 및 이미지 파일 업로드
-- **문제 인식 (OCR)**: 업로드된 이미지에서 텍스트와 수식, 간단한 도형 등을 정확하게 인식
+- **문제 입력**: 스마트폰 카메라나 PC 웹캠을 통한 실시간 촬영 및 이미지 파일 업로드 (드래그 앤 드롭 지원)
+- **문제 인식 (Mathpix API)**: 업로드된 이미지에서 수학 기호, 텍스트, 수식을 정확하게 인식하여 LaTeX 형식으로 변환
 - **정답 및 해설 생성**: 인식된 문제의 정답과 상세한 단계별 풀이 과정을 텍스트로 생성
 - **결과 출력**: 원본 문제 이미지와 함께 AI가 생성한 정답 및 텍스트 해설을 명확하게 표시
 
@@ -27,9 +27,10 @@
 
 ## 🛠️ 기술 스택
 
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS
+- **Frontend**: Next.js 15, TypeScript, Tailwind CSS
 - **UI Components**: shadcn/ui
 - **Icons**: Lucide React
+- **Image Recognition**: Mathpix API
 - **Styling**: Tailwind CSS with custom accessibility features
 
 ## 🎨 접근성 기능
@@ -55,10 +56,29 @@
 ```bash
 # 의존성 설치
 npm install
+```
 
+### Mathpix API 설정
+
+1. [Mathpix](https://mathpix.com/)에서 계정을 생성하고 API 키를 발급받습니다
+2. 프로젝트 루트에 `.env.local` 파일을 생성합니다:
+
+```bash
+# .env.local
+MATHPIX_APP_ID=your_app_id_here
+MATHPIX_APP_KEY=your_app_key_here
+```
+
+3. 환경변수가 없는 경우 개발용 mock 데이터가 사용됩니다
+
+### 개발 서버 실행
+
+```bash
 # 개발 서버 실행
 npm run dev
 ```
+
+브라우저에서 `http://localhost:3100`으로 접속합니다.
 
 ### 빌드
 
