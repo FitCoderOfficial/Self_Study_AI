@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Navigation from "@/components/Navigation";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Camera, Upload, FileImage, RotateCcw, CheckCircle, Sparkles, AlertCircle, Loader2, Clipboard } from "lucide-react";
 import { processImageWithMathpix } from "@/api/mockData";
+import { StorageManager } from "@/lib/utils";
 
 export default function SolvePage() {
   const router = useRouter();
@@ -110,6 +111,50 @@ export default function SolvePage() {
     };
   }, []);
 
+  // 이미지 압축 함수 (최적화)
+  const compressImage = useCallback((file: File, maxWidth: number = 800, quality: number = 0.8): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = document.createElement('img');
+      
+      if (!ctx) {
+        reject(new Error('Canvas context not available'));
+        return;
+      }
+      
+      img.onload = () => {
+        try {
+          // 비율 유지하면서 크기 조정
+          const ratio = Math.min(maxWidth / img.width, maxWidth / img.height);
+          const newWidth = Math.round(img.width * ratio);
+          const newHeight = Math.round(img.height * ratio);
+          
+          canvas.width = newWidth;
+          canvas.height = newHeight;
+          
+          ctx.drawImage(img, 0, 0, newWidth, newHeight);
+          
+          // 압축된 base64 문자열 반환
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressedDataUrl);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      img.onerror = () => reject(new Error('Image load failed'));
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('File read failed'));
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+
   // 파일 처리 함수
   const handleFileProcess = async (file: File) => {
     if (!file) return;
@@ -126,34 +171,49 @@ export default function SolvePage() {
     setError(null);
     setIsProcessing(true);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setSelectedImage(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    // 스토리지 정리 (StorageManager 사용)
+    if (StorageManager.needsCleanup()) {
+      StorageManager.cleanupOldData();
+    }
 
     try {
+      // 이미지 압축
+      const compressedImage = await compressImage(file, 800, 0.8);
+      setSelectedImage(compressedImage);
+
       const response = await processImageWithMathpix(file);
 
       if (response.success && response.data) {
         const resultId = Date.now().toString();
         const processedResult = {
           id: resultId,
-          originalImage: selectedImage, // base64 string
+          originalImage: compressedImage, // 압축된 이미지 사용
           fileName: file.name,
           processedText: response.data.processedText,
-          subject: "다양한 과목", // 다양한 과목으로 설정
+          subject: "다양한 과목",
           timestamp: new Date().toISOString(),
           confidence: 95
         };
-        localStorage.setItem(`processedResult_${resultId}`, JSON.stringify(processedResult));
         
-        // 결과 목록에 추가
-        const existingResults = JSON.parse(localStorage.getItem('processedResults') || '[]');
-        existingResults.unshift(processedResult);
-        localStorage.setItem('processedResults', JSON.stringify(existingResults));
-
-        router.push(`/new-question/${resultId}`);
+        // StorageManager를 사용하여 안전하게 저장
+        const saved = StorageManager.safeSetItem(`processedResult_${resultId}`, JSON.stringify(processedResult));
+        
+        if (saved) {
+          // 결과 목록에 추가 (최대 10개로 제한)
+          const existingResults = JSON.parse(localStorage.getItem('processedResults') || '[]');
+          existingResults.unshift(processedResult);
+          
+          // 10개 초과 시 오래된 항목 제거
+          if (existingResults.length > 10) {
+            existingResults.splice(10);
+          }
+          
+          StorageManager.safeSetItem('processedResults', JSON.stringify(existingResults));
+          
+          router.push(`/new-question/${resultId}`);
+        } else {
+          setError('스토리지 용량이 부족합니다. 브라우저 데이터를 정리해주세요.');
+        }
       } else {
         setError(response.error || '이미지 처리 중 오류가 발생했습니다.');
       }
@@ -191,9 +251,8 @@ export default function SolvePage() {
             AI 문제 풀이
           </h1>
                     <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
-            문제를 촬영하거나 업로드하면 <span className="font-semibold text-green-600 dark:text-green-400">Mathpix AI</span>가 수학 기호와 텍스트를 인식하여 정답과 상세한 해설을 제공합니다.
-            <br className="hidden md:block" />
-            <span className="font-semibold text-blue-600 dark:text-blue-400">수학, 물리, 화학 등의 문제</span>를 처리할 수 있습니다!
+            <span className="font-semibold text-blue-600 dark:text-blue-400">AI 기술</span>을 활용하여 문제를 촬영하거나 업로드하면 <br/>수학 기호와 텍스트를 자동으로 인식합니다.
+            
           </p>
         </div>
 
@@ -347,7 +406,7 @@ export default function SolvePage() {
                     <CheckCircle className="w-4 h-4 text-green-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-gray-900 dark:text-gray-300 mb-3 text-lg">🎯 Mathpix AI 인식 향상</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-gray-300 mb-3 text-lg">🎯 AI 학습 도우미 활용법</h4>
                     <ul className="space-y-2 text-gray-600 dark:text-gray-300">
                       <li className="flex items-start">
                         <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></span>

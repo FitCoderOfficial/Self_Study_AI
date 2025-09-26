@@ -286,4 +286,101 @@
                 color 0.3s ease,
                 box-shadow 0.3s ease;
   }
+
+  /* 수학 문제 텍스트 가독성 개선 */
+  .math-problem-display {
+    /* 기본 간격과 타이포그래피 */
+    line-height: 1.8;
+    word-spacing: 0.1em;
+    
+    /* 전체 문단 간격 */
+    p {
+      margin-bottom: 1.2em;
+    }
+    
+    /* 줄바꿈 간격 조정 */
+    br {
+      line-height: 2;
+    }
+    
+    /* 강조 텍스트 */
+    strong, b {
+      font-weight: 700;
+      color: rgb(59, 130, 246);
+    }
+    
+    /* 선택지 스타일링 */
+    .choice-option {
+      font-weight: 600;
+      color: rgb(79, 70, 229);
+      background-color: rgba(79, 70, 229, 0.1);
+      padding: 0.2em 0.5em;
+      border-radius: 4px;
+      margin-right: 0.5em;
+    }
+  }
+  
+  /* 수학 수식 스타일링 */
+  .math-inline {
+    background-color: rgba(59, 130, 246, 0.1);
+    padding: 0.1em 0.3em;
+    border-radius: 4px;
+    font-family: 'Times New Roman', serif;
+    font-style: italic;
+    color: rgb(59, 130, 246);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+  
+  .math-display {
+    background-color: rgba(59, 130, 246, 0.05);
+    padding: 1em;
+    border-radius: 8px;
+    font-family: 'Times New Roman', serif;
+    font-size: 1.1em;
+    border-left: 4px solid rgb(59, 130, 246);
+    margin: 1.5em 0;
+  }
+  
+  .absolute-value {
+    font-family: 'Times New Roman', serif;
+    font-weight: bold;
+    color: rgb(139, 69, 19);
+  }
+  
+  .set-notation {
+    font-family: 'Times New Roman', serif;
+    font-weight: bold;
+    color: rgb(34, 139, 34);
+  }
+  
+  /* 다크모드 */
+  .dark .math-problem-display {
+    strong, b {
+      color: rgb(147, 197, 253);
+    }
+    
+    .choice-option {
+      color: rgb(196, 181, 253);
+      background-color: rgba(196, 181, 253, 0.15);
+    }
+  }
+  
+  .dark .math-inline {
+    background-color: rgba(147, 197, 253, 0.15);
+    color: rgb(147, 197, 253);
+    border-color: rgba(147, 197, 253, 0.3);
+  }
+  
+  .dark .math-display {
+    background-color: rgba(147, 197, 253, 0.08);
+    border-left-color: rgb(147, 197, 253);
+  }
+  
+  .dark .absolute-value {
+    color: rgb(255, 165, 0);
+  }
+  
+  .dark .set-notation {
+    color: rgb(144, 238, 144);
+  }
 }

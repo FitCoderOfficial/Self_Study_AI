@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: {
-          processedText: "**개발 모드**: Mathpix API가 설정되지 않았습니다.\n\n$$x^2 - 5x + 6 = 0$$\n\n이차방정식의 두 근을 구하시오.\n\n**해답**: \\(x = 2\\) 또는 \\(x = 3\\)\n\n**풀이**:\n인수분해를 사용하면:\n$$(x-2)(x-3) = 0$$\n따라서 \\(x = 2\\) 또는 \\(x = 3\\)\n\n---\n*실제 Mathpix API를 사용하려면 환경변수를 설정하세요.*"
+          processedText: "28. 직육공간에 AB̄=8, BC̄=6, ∠ABC=π/2 인 직각삼각형 ABC 와 선분 AC 를 지름으로 하는 구 S 가 있다.<br><br>직선 AB 를 포함하고 평면 ABC 에 수직인 평면이 구 S 와 만나서 생기는 원을 O 라 하자.<br><br>원 O 위의 점 중에서 직선 AC 까지의 거리가 4 인 서로 다른 두 점을 P, Q 라 할 때, 선분 PQ 의 길이는?<br><br><strong>[4점]</strong><br><br>(1) √(43)<br><br>(2) √(47)<br><br>(3) √(51)<br><br>(4) √(55)<br><br>(5) √(59)"
         }
       });
     }
@@ -153,7 +153,8 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         src: `data:${file.type};base64,${base64}`,
-        formats: ['text', 'latex_simplified'],
+        formats: ['text', 'latex_simplified', 'mathml'],
+        ocr: ['math', 'text'],
         data_options: {
           include_asciimath: true,
           include_latex: true
@@ -184,14 +185,55 @@ export async function POST(request: NextRequest) {
 
     console.log('Mathpix API 성공 응답:', {
       text: mathpixData.text?.substring(0, 100) + '...',
-      latex: mathpixData.latex_simplified?.substring(0, 100) + '...'
+      latex: mathpixData.latex_simplified?.substring(0, 100) + '...',
+      mathml: mathpixData.mathml ? 'mathml 포함됨' : 'mathml 없음'
     });
+
+    // LaTeX를 Unicode로 변환하는 함수
+    const convertLatexToUnicode = (text: string): string => {
+      return text
+        // 기본 LaTeX 명령어들을 Unicode로 변환
+        .replace(/\\overline\{([^}]+)\}/g, '$1̄')
+        .replace(/\\mathrm\{([^}]+)\}/g, '$1')
+        .replace(/\\text\{([^}]+)\}/g, '$1')
+        .replace(/\\angle/g, '∠')
+        .replace(/\\theta/g, 'θ')
+        .replace(/\\alpha/g, 'α')
+        .replace(/\\beta/g, 'β')
+        .replace(/\\gamma/g, 'γ')
+        .replace(/\\delta/g, 'δ')
+        .replace(/\\pi/g, 'π')
+        .replace(/\\sqrt\{([^}]+)\}/g, '√($1)')
+        .replace(/\\sqrt(\d+)/g, '√$1')
+        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)')
+        .replace(/\\frac\{\\pi\}\{2\}/g, 'π/2')
+        // 괄호 처리
+        .replace(/\\left\(/g, '(')
+        .replace(/\\right\)/g, ')')
+        .replace(/\\left\[/g, '[')
+        .replace(/\\right\]/g, ']')
+        .replace(/\\left\{/g, '{')
+        .replace(/\\right\}/g, '}')
+        // 남은 LaTeX 명령어 제거
+        .replace(/\\[a-zA-Z]+\{([^}]*)\}/g, '$1')
+        .replace(/\\[a-zA-Z]+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    // 최적의 텍스트 선택 및 변환
+    let processedText = mathpixData.text || mathpixData.latex_simplified || mathpixData.mathml || '텍스트를 인식할 수 없습니다.';
+    
+    // LaTeX가 포함되어 있으면 변환
+    if (processedText.includes('\\')) {
+      processedText = convertLatexToUnicode(processedText);
+    }
 
     // 성공적으로 처리된 텍스트 반환
     return NextResponse.json({
       success: true,
       data: {
-        processedText: mathpixData.text || mathpixData.latex_simplified || '텍스트를 인식할 수 없습니다.'
+        processedText: processedText
       }
     });
 

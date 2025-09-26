@@ -8,7 +8,8 @@ import Navigation from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CheckCircle, Clock, Image as ImageIcon, Copy, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, Image as ImageIcon, Copy, Loader2, Hash, Award } from 'lucide-react';
+import { StorageManager, parseProblemText, type ParsedProblem } from '@/lib/utils';
 
 declare global {
   interface Window {
@@ -35,6 +36,7 @@ export default function NewQuestionPage() {
   const params = useParams();
   const router = useRouter();
   const [result, setResult] = useState<ProcessedResult | null>(null);
+  const [parsedProblem, setParsedProblem] = useState<ParsedProblem | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -60,6 +62,11 @@ export default function NewQuestionPage() {
       // 로딩 애니메이션을 위한 최소 대기 시간 (UX 개선)
       setTimeout(() => {
         setResult(parsedResult);
+        // 텍스트 파싱
+        if (parsedResult.processedText) {
+          const parsed = parseProblemText(parsedResult.processedText);
+          setParsedProblem(parsed);
+        }
         setIsLoading(false);
       }, 1000); // 1초로 단축
     } else {
@@ -79,20 +86,13 @@ export default function NewQuestionPage() {
   const handleLogin = () => setIsLoggedIn(true);
   const handleLogout = () => setIsLoggedIn(false);
 
-  const handleCopyText = async () => {
-    if (result?.processedText) {
-      try {
-        await navigator.clipboard.writeText(result.processedText);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('복사 실패:', err);
-      }
-    }
-  };
-
   const handleSaveToArchive = () => {
     if (!result) return;
+    
+    // 스토리지 정리 먼저 실행 (StorageManager 사용)
+    if (StorageManager.needsCleanup()) {
+      StorageManager.cleanupOldData();
+    }
     
     const archiveItem = {
       id: result.id,
@@ -101,19 +101,41 @@ export default function NewQuestionPage() {
       answer: "AI가 분석한 문제입니다",
       date: new Date(result.timestamp).toISOString().split('T')[0],
       isCorrect: true,
-      imageUrl: result.originalImage,
+      imageUrl: result.originalImage.length > 100000 ? '' : result.originalImage, // 큰 이미지는 저장하지 않음
       difficulty: "medium" as const,
       tags: ["AI 처리", result.subject]
     };
 
     try {
       const existingArchive = JSON.parse(localStorage.getItem('archivedQuestions') || '[]');
+      
+      // 아카이브도 최대 30개로 제한 (StorageManager와 일관성 유지)
+      if (existingArchive.length >= 30) {
+        existingArchive.pop(); // 가장 오래된 항목 제거
+      }
+      
       existingArchive.unshift(archiveItem);
-      localStorage.setItem('archivedQuestions', JSON.stringify(existingArchive));
-      alert('✅ 아카이브에 저장되었습니다!');
+      
+      // StorageManager를 사용하여 안전하게 저장
+      const saved = StorageManager.safeSetItem('archivedQuestions', JSON.stringify(existingArchive));
+      
+      if (saved) {
+        alert('✅ 아카이브에 저장되었습니다!');
+      } else {
+        // 여전히 저장 실패 시, 이미지 없이 저장 시도
+        const itemWithoutImage = { ...archiveItem, imageUrl: '' };
+        existingArchive[0] = itemWithoutImage;
+        const savedWithoutImage = StorageManager.safeSetItem('archivedQuestions', JSON.stringify(existingArchive));
+        
+        if (savedWithoutImage) {
+          alert('✅ 아카이브에 저장되었습니다! (이미지는 용량 문제로 제외됨)');
+        } else {
+          alert('❌ 스토리지 용량이 부족하여 저장할 수 없습니다. 브라우저 데이터를 정리해주세요.');
+        }
+      }
     } catch (error) {
       console.error('저장 오류:', error);
-      alert('❌ 저장 중 오류가 발생했습니다.');
+      alert('❌ 저장 중 오류가 발생했습니다. 스토리지 용량이 부족할 수 있습니다.');
     }
   };
 
@@ -224,17 +246,63 @@ export default function NewQuestionPage() {
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 AI 분석 결과
               </CardTitle>
+              
+              {/* 문제 번호 및 배점 표시 */}
+              {parsedProblem && (parsedProblem.number || parsedProblem.score) && (
+                <div className="bg-slate-700/50 rounded-lg p-3 mt-4">
+                  <div className="flex items-center justify-between text-white">
+                    {parsedProblem.number && (
+                      <div className="flex items-center">
+                        <span className="text-gray-300 text-sm">문제 번호</span>
+                        <span className="ml-2 text-xl font-bold text-blue-400">{parsedProblem.number}</span>
+                      </div>
+                    )}
+                    {parsedProblem.score && (
+                      <div className="flex items-center">
+                        <span className="text-gray-300 text-sm">배점</span>
+                        <span className="ml-2 text-lg font-semibold text-purple-400">{parsedProblem.score}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div 
-                  className="bg-white dark:bg-gray-700 p-6 rounded-lg border dark:border-gray-600 shadow-sm min-h-[200px] text-gray-900 dark:text-gray-100"
-                  dangerouslySetInnerHTML={{ __html: result.processedText }}
-                />
+                {/* 포맷된 문제 내용 표시 */}
+                <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border dark:border-gray-600 shadow-sm min-h-[200px] text-gray-900 dark:text-gray-100 math-problem-display">
+                  {parsedProblem ? (
+                    <div className="leading-relaxed space-y-3">
+                      {parsedProblem.formattedContent.split('\n').map((line, index) => (
+                        <div 
+                          key={index}
+                          className="text-base"
+                          dangerouslySetInnerHTML={{ 
+                            __html: line
+                              .replace(/\$\$([^$]+)\$\$/g, '<div class="math-display my-4 text-center">$$$$1$$</div>')
+                              .replace(/\$([^$]+)\$/g, '<span class="math-inline">$$$1$$</span>')
+                              .replace(/\|([^|]+)\|/g, '<span class="absolute-value">|$1|</span>')
+                              .replace(/\\\{([^}]+)\\\}/g, '<span class="set-notation">{$1}</span>')
+                          }}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div 
+                      dangerouslySetInnerHTML={{ __html: result.processedText }}
+                    />
+                  )}
+                </div>
                 
                 <div className="flex flex-wrap gap-2">
                   <Button 
-                    onClick={handleCopyText} 
+                    onClick={() => {
+                      const textToCopy = parsedProblem?.formattedContent || result.processedText.replace(/<[^>]*>/g, '');
+                      navigator.clipboard.writeText(textToCopy).then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      });
+                    }}
                     variant="outline" 
                     size="sm"
                     className={copied ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-400" : "dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"}
@@ -280,10 +348,11 @@ export default function NewQuestionPage() {
                     if (navigator.share && result) {
                       navigator.share({
                         title: 'AI 분석 결과',
-                        text: result.processedText.replace(/<[^>]*>/g, '') // HTML 태그 제거
+                        text: parsedProblem?.formattedContent || result.processedText.replace(/<[^>]*>/g, '') // HTML 태그 제거
                       }).catch(console.error);
                     } else {
-                      handleCopyText();
+                      const textToCopy = parsedProblem?.formattedContent || result.processedText.replace(/<[^>]*>/g, '');
+                      navigator.clipboard.writeText(textToCopy);
                     }
                   }}
                   variant="outline" 
