@@ -90,18 +90,22 @@ function formatProblemContent(text: string): string {
     // LaTeX 수식 임시 보호
     .replace(/\$\$([^$]+)\$\$/g, '<<<BLOCK_MATH_$1>>>')
     .replace(/\$([^$]+)\$/g, '<<<INLINE_MATH_$1>>>')
-    // 마침표 뒤 줄바꿈
-    .replace(/([가-힣a-zA-Z0-9])\.\s*([가-힣A-Z가-힣])/g, '$1.\n$2')
-    // 물음표, 느낌표 뒤 줄바꿈
-    .replace(/([가-힣a-zA-Z0-9])[?!]\s*([가-힣A-Z])/g, '$1?\n$2')
-    // 서술어 뒤 줄바꿈
-    .replace(/(이다|한다|된다|있다|없다)\.\s*([가-힣A-Z])/g, '$1.\n$2')
+    // 수식 및 특수 기호 보호
+    .replace(/([A-Z])(\d+)/g, '<<<VAR_$1$2>>>')  // C1, O1 등
+    .replace(/([가-힣]{2,})\s*\(/g, '<<<FUNC_$1>>>(')  // 함수명
+    // 마침표 뒤 줄바꿈 (더 포괄적으로)
+    .replace(/\.\s+/g, '.\n')  // 모든 마침표 뒤 줄바꿈
+    // 연속된 줄바꿈을 하나로 정리
+    .replace(/\n\s*\n+/g, '\n')
+    // 보호된 요소들 복원
+    .replace(/<<<VAR_([A-Z]\d+)>>>/g, '$1')
+    .replace(/<<<FUNC_([가-힣]{2,})>>>/g, '$1')
     // 수식 복원
     .replace(/<<<BLOCK_MATH_([^>]+)>>>/g, '$$$$1$$')
     .replace(/<<<INLINE_MATH_([^>]+)>>>/g, '$$$1$$')
     // 공백 정리
     .replace(/\s+/g, ' ')
-    .replace(/\n\s*\n/g, '\n')
+    .replace(/^\s*\n|\n\s*$/g, '')  // 시작/끝 빈 줄 제거
     .trim();
 }
 
