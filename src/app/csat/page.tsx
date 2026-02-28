@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   Search, GraduationCap, Sparkles, Loader2, ChevronDown, ChevronUp,
-  BookOpen, Tag, ExternalLink, FileText, AlertTriangle,
+  BookOpen, Tag, Download, FileText, AlertTriangle, RefreshCw,
 } from 'lucide-react';
 import type { SimilarQuestion } from '@/app/api/similar-question/route';
 
@@ -42,30 +42,25 @@ const DIFFICULTY_MAP: Record<string, { label: string; color: string }> = {
   hard: { label: '어려움', color: 'bg-red-100 text-red-700' },
 };
 
-/** 공식 시험지 출처 링크 */
-const OFFICIAL_LINKS = [
-  {
-    title: 'KICE 수능 기출문제 (공식)',
-    desc: '한국교육과정평가원 공식 기출문제 목록 — PDF 다운로드 가능',
-    url: 'https://www.suneung.re.kr/sub/info.do?m=0405&s=suneung',
-    badge: '공식',
-    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-  },
-  {
-    title: 'EBSi 수능 기출문제',
-    desc: 'EBS 수능 강의 사이트 — 과목별 기출문제 열람 (무료 회원가입 필요)',
-    url: 'https://www.ebsi.co.kr/ebs/pot/potn/index.ebs',
-    badge: 'EBS',
-    badgeClass: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
-  },
-  {
-    title: 'KICE 기출문제 안내 (kice.re.kr)',
-    desc: '한국교육과정평가원 — 수능·모의평가 기출 자료 안내 페이지',
-    url: 'https://www.kice.re.kr/sub/info.do?m=0303&s=kice',
-    badge: '공식',
-    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-  },
-];
+interface CsatPdf {
+  year: number;
+  month: number;
+  subject: string;
+  pdf_url: string | null;
+  answer_url: string | null;
+}
+
+/** 공식 시험지 출처 링크 (DB 데이터 없을 때 fallback) */
+const FALLBACK_LINK = 'https://www.suneung.re.kr/sub/info.do?m=0405&s=suneung';
+
+const SUBJECT_ORDER = ['국어', '수학', '영어', '한국사', '사회탐구', '과학탐구', '직업탐구', '제2외국어'];
+function sortSubjects(pdfs: CsatPdf[]) {
+  return [...pdfs].sort((a, b) => {
+    const ai = SUBJECT_ORDER.indexOf(a.subject);
+    const bi = SUBJECT_ORDER.indexOf(b.subject);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+}
 
 export default function CsatPage() {
   const [activeTab, setActiveTab] = useState<'problems' | 'viewer'>('problems');
@@ -81,6 +76,11 @@ export default function CsatPage() {
   const [showAnswer, setShowAnswer] = useState<Record<string, boolean>>({});
   const [showSimilarAnswer, setShowSimilarAnswer] = useState<Record<string, boolean>>({});
   const [source, setSource] = useState<'database' | 'sample'>('sample');
+
+  // 시험지 PDF 상태
+  const [pdfs, setPdfs] = useState<CsatPdf[]>([]);
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const fetchProblems = useCallback(async () => {
     setIsLoading(true);
@@ -106,6 +106,33 @@ export default function CsatPage() {
   }, [selectedYear, selectedMonth, selectedSubject, searchQuery]);
 
   useEffect(() => { fetchProblems(); }, [fetchProblems]);
+
+  const fetchPdfs = useCallback(async () => {
+    setIsPdfLoading(true);
+    setPdfError(null);
+    try {
+      const params = new URLSearchParams({
+        year: selectedYear.toString(),
+        month: selectedMonth.toString(),
+      });
+      const res = await fetch(`/api/csat/pdfs?${params}`);
+      const data = await res.json();
+      if (data.success) {
+        setPdfs(data.pdfs);
+      } else {
+        setPdfError(data.error || '데이터를 불러오지 못했습니다.');
+      }
+    } catch {
+      setPdfError('서버 연결 오류');
+    } finally {
+      setIsPdfLoading(false);
+    }
+  }, [selectedYear, selectedMonth]);
+
+  // 시험지 탭 활성화 시 PDF 로드
+  useEffect(() => {
+    if (activeTab === 'viewer') fetchPdfs();
+  }, [activeTab, fetchPdfs]);
 
   const handleGenerateSimilar = async (problem: CsatProblem) => {
     setGeneratingId(problem.id);
@@ -463,74 +490,129 @@ export default function CsatPage() {
         {/* ── 탭 2: 시험지 보기 ── */}
         {activeTab === 'viewer' && (
           <div className="space-y-4">
-            {/* 안내 배너 */}
-            <Card className="dark:bg-gray-800 dark:border-gray-700 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-medium text-amber-800 dark:text-amber-300 mb-1">직접 임베드가 불가능합니다</p>
-                    <p className="text-amber-700 dark:text-amber-400">
-                      KICE 공식 시험지 페이지는 시험 직후 며칠만 임시 운영 후 삭제됩니다.
-                      아래 영구 공식 사이트에서 PDF를 다운로드하거나 열람하세요.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 공식 출처 링크 카드 */}
-            <div className="grid sm:grid-cols-3 gap-4">
-              {OFFICIAL_LINKS.map((link) => (
-                <a
-                  key={link.url}
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block group"
-                >
-                  <Card className="h-full dark:bg-gray-800 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all">
-                    <CardContent className="pt-5 pb-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${link.badgeClass}`}>
-                          {link.badge}
-                        </span>
-                        <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
-                      </div>
-                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-1.5 leading-snug">
-                        {link.title}
-                      </h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-                        {link.desc}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </a>
-              ))}
+            {/* 헤더 */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {selectedYear}학년도 {monthLabel} 시험지
+              </h2>
+              <Button
+                onClick={fetchPdfs}
+                disabled={isPdfLoading}
+                variant="outline"
+                size="sm"
+                className="dark:border-gray-600 dark:text-gray-300"
+              >
+                {isPdfLoading
+                  ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />불러오는 중</>
+                  : <><RefreshCw className="w-3.5 h-3.5 mr-1.5" />새로고침</>
+                }
+              </Button>
             </div>
 
-            {/* 이용 방법 안내 */}
-            <Card className="dark:bg-gray-800 dark:border-gray-700 shadow-sm">
-              <CardContent className="pt-5 pb-5">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4" />
-                  수능 시험지 열람 방법
-                </h3>
-                <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2.5 list-decimal list-inside">
-                  <li>
-                    <strong className="text-gray-700 dark:text-gray-300">KICE 공식 기출문제 페이지</strong> 접속
-                    <span className="block ml-5 text-xs mt-0.5 text-gray-500">suneung.re.kr → 기출문제 메뉴</span>
-                  </li>
-                  <li>
-                    원하는 <strong className="text-gray-700 dark:text-gray-300">연도 및 시험 종류</strong> 선택
-                    <span className="block ml-5 text-xs mt-0.5 text-gray-500">수능(11월), 9월/6월 모의평가</span>
-                  </li>
-                  <li>
-                    과목별 <strong className="text-gray-700 dark:text-gray-300">PDF 파일 다운로드</strong> 또는 온라인 열람
-                  </li>
-                </ol>
-              </CardContent>
-            </Card>
+            {/* 로딩 */}
+            {isPdfLoading && (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mr-3" />
+                <span className="text-gray-600 dark:text-gray-300">시험지 목록 불러오는 중...</span>
+              </div>
+            )}
+
+            {/* 에러 */}
+            {!isPdfLoading && pdfError && (
+              <Card className="dark:bg-gray-800 dark:border-gray-700 text-center py-10">
+                <CardContent>
+                  <AlertTriangle className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
+                  <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">데이터를 불러올 수 없습니다</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">{pdfError}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    Supabase에 csat_pdfs 테이블이 없거나 크롤링을 아직 실행하지 않았습니다.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* DB에 데이터 없을 때 */}
+            {!isPdfLoading && !pdfError && pdfs.length === 0 && (
+              <Card className="dark:bg-gray-800 dark:border-gray-700 text-center py-12">
+                <CardContent>
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-700 dark:text-gray-200 text-lg font-medium mb-2">
+                    크롤링 데이터가 없습니다
+                  </p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm mb-5 max-w-sm mx-auto">
+                    아래 명령어를 터미널에서 실행하면 suneung.re.kr에서<br />
+                    기출문제 PDF 링크를 자동으로 수집합니다.
+                  </p>
+                  <div className="bg-gray-900 dark:bg-gray-950 text-green-400 font-mono text-sm px-5 py-3 rounded-lg inline-block mb-5">
+                    node scripts/crawl-csat.mjs
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+                    수집 후 이 페이지를 새로고침하면 과목별 PDF 다운로드 버튼이 표시됩니다.
+                  </p>
+                  <a
+                    href={FALLBACK_LINK}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    <Download className="w-4 h-4" />
+                    KICE 공식 사이트에서 직접 보기
+                  </a>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* PDF 목록 (DB 데이터) */}
+            {!isPdfLoading && !pdfError && pdfs.length > 0 && (
+              <>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  총 {pdfs.length}개 과목 · suneung.re.kr 공식 PDF
+                </p>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {sortSubjects(pdfs).map((pdf) => (
+                    <Card key={`${pdf.year}-${pdf.month}-${pdf.subject}`}
+                      className="dark:bg-gray-800 dark:border-gray-700 shadow-sm">
+                      <CardContent className="pt-4 pb-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                            {pdf.subject}
+                          </h3>
+                          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-xs">
+                            {pdf.year}학년도
+                          </Badge>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          {pdf.pdf_url ? (
+                            <a
+                              href={pdf.pdf_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                              문제지 PDF 다운로드
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">문제지 없음</span>
+                          )}
+                          {pdf.answer_url && (
+                            <a
+                              href={pdf.answer_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                              정답표 PDF 다운로드
+                            </a>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </main>

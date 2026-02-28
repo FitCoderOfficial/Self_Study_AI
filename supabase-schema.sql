@@ -129,3 +129,25 @@ CREATE INDEX IF NOT EXISTS idx_questions_subject ON public.questions(subject);
 CREATE INDEX IF NOT EXISTS idx_questions_created_at ON public.questions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_csat_problems_year ON public.csat_problems(year, month, subject);
 CREATE INDEX IF NOT EXISTS idx_similar_questions_user ON public.similar_questions(user_id);
+
+-- ===================================
+-- 5. 수능 시험지 PDF 링크 테이블 (크롤링 데이터)
+-- ===================================
+CREATE TABLE IF NOT EXISTS public.csat_pdfs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  year INTEGER NOT NULL,         -- 학년도 (e.g. 2026)
+  month INTEGER NOT NULL,        -- 11=수능, 9=9월모평, 6=6월모평
+  subject TEXT NOT NULL,         -- 영역 (국어, 수학, 영어, ...)
+  pdf_url TEXT,                  -- 문제지 PDF 다운로드 URL
+  answer_url TEXT,               -- 정답표 PDF 다운로드 URL
+  board_seq TEXT,                -- suneung.re.kr boardSeq
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(year, month, subject)
+);
+
+ALTER TABLE public.csat_pdfs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can read csat_pdfs"  ON public.csat_pdfs FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert csat_pdfs" ON public.csat_pdfs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can update csat_pdfs" ON public.csat_pdfs FOR UPDATE USING (true);
+
+CREATE INDEX IF NOT EXISTS idx_csat_pdfs_year ON public.csat_pdfs(year, month, subject);
