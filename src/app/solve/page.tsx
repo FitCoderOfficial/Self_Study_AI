@@ -258,16 +258,16 @@ export default function SolvePage() {
   // ── 렌더링 ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#eff6ff]">
+    <div className="min-h-screen bg-[#eff6ff] dark:bg-gray-900 transition-colors duration-300">
       <Navigation />
 
       <main className="max-w-4xl mx-auto px-4 py-10">
 
         {/* 페이지 제목 */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 text-blue-500 mb-3">
+          <div className="inline-flex items-center gap-2 text-blue-500 dark:text-blue-400 mb-3">
             <Cloud className="w-8 h-8" />
-            <h1 className="text-3xl font-bold text-gray-900">수능 AI 문제 풀이</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">수능 AI 문제 풀이</h1>
           </div>
         </div>
 
@@ -283,7 +283,7 @@ export default function SolvePage() {
                     className={`flex items-center gap-2 px-6 h-12 font-bold rounded-xl border text-base transition-colors duration-200 ${
                       isActive
                         ? 'bg-blue-500 text-white border-blue-500 shadow-md'
-                        : 'bg-white text-gray-800 border-blue-100 hover:bg-blue-50 hover:border-blue-200'
+                        : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-blue-100 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-gray-700 hover:border-blue-200 dark:hover:border-blue-500'
                     }`}
                   >
                     <span className="text-lg">{group.emoji}</span>
@@ -306,7 +306,7 @@ export default function SolvePage() {
                     className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-all ${
                       isActive
                         ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400'
                     }`}
                   >
                     {sub}
@@ -320,8 +320,10 @@ export default function SolvePage() {
         {/* 업로드 영역 */}
         {!selectedImage ? (
           <section
-            className={`w-full bg-white rounded-[2.5rem] py-20 px-8 border-4 border-dashed flex flex-col items-center justify-center text-center transition-colors cursor-pointer mb-12 ${
-              dragActive ? 'border-blue-500 bg-blue-50/20' : 'border-blue-300 hover:bg-blue-50/10'
+            className={`w-full bg-white dark:bg-gray-800 rounded-[2.5rem] py-20 px-8 border-4 border-dashed flex flex-col items-center justify-center text-center transition-colors cursor-pointer mb-12 ${
+              dragActive
+                ? 'border-blue-500 bg-blue-50/20 dark:bg-blue-900/20'
+                : 'border-blue-300 dark:border-gray-600 hover:bg-blue-50/10 dark:hover:bg-gray-700/30'
             }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -330,17 +332,17 @@ export default function SolvePage() {
             onClick={() => fileInputRef.current?.click()}
           >
             <div className="flex items-center gap-4 text-6xl mb-6">
-              <CloudUpload className="w-16 h-16 text-blue-500" />
-              <ArrowRight className="w-10 h-10 text-gray-300" />
-              <ImageIcon className="w-16 h-16 text-gray-300" />
+              <CloudUpload className="w-16 h-16 text-blue-500 dark:text-blue-400" />
+              <ArrowRight className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+              <ImageIcon className="w-16 h-16 text-gray-300 dark:text-gray-600" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">문제 이미지 업로드</h2>
-            <p className="text-gray-500 mb-8 max-w-md">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">문제 이미지 업로드</h2>
+            <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-md">
               여기에 파일을 드래그하거나 클릭하여 업로드하세요<br />
               (JPG, PNG, GIF) · Ctrl+V 붙여넣기 지원
             </p>
             {/* 선택 과목 표시 */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 mb-6 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 mb-6 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-sm font-medium">
               <span>{currentGroup.emoji}</span>
               <span>{getDisplayLabel(selectedGroupId, selectedSub)}</span>
             </div>
@@ -366,20 +368,20 @@ export default function SolvePage() {
           </section>
         ) : (
           /* 이미지 선택된 상태 */
-          <section className="w-full bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm mb-12">
+          <section className="w-full bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 border border-gray-100 dark:border-gray-700 shadow-sm mb-12">
             <div className="relative max-w-2xl mx-auto mb-6">
               <Image
                 src={selectedImage}
                 alt="업로드된 문제"
                 width={800}
                 height={600}
-                className="w-full h-auto max-h-[500px] object-contain rounded-xl border shadow-sm"
+                className="w-full h-auto max-h-[500px] object-contain rounded-xl border dark:border-gray-600 shadow-sm"
                 unoptimized
               />
               <button
                 onClick={resetProcess}
                 disabled={isProcessing}
-                className="absolute top-3 right-3 bg-white/90 border border-gray-200 rounded-full px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                className="absolute top-3 right-3 bg-white/90 dark:bg-gray-700/90 border border-gray-200 dark:border-gray-600 rounded-full px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
               >
                 <RotateCcw className="w-4 h-4 inline mr-1" />다시 선택
               </button>
@@ -387,15 +389,15 @@ export default function SolvePage() {
 
             {/* 선택 과목 */}
             <div className="flex items-center justify-center gap-2 mb-4">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-sm font-medium">
                 {currentGroup.emoji} {getDisplayLabel(selectedGroupId, selectedSub)}
               </span>
-              <span className="text-xs text-gray-400">과목으로 분석합니다</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">과목으로 분석합니다</span>
             </div>
 
             {/* 에러 */}
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
+              <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm mb-4">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 {error}
               </div>
@@ -403,9 +405,9 @@ export default function SolvePage() {
 
             {/* 처리 상태 */}
             {isProcessing && processingStep && (
-              <div className="flex items-center justify-center gap-3 py-3 bg-blue-50 rounded-lg mb-4">
-                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                <span className="text-blue-700 font-medium">{processingStep}</span>
+              <div className="flex items-center justify-center gap-3 py-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg mb-4">
+                <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />
+                <span className="text-blue-700 dark:text-blue-300 font-medium">{processingStep}</span>
               </div>
             )}
 
@@ -413,7 +415,7 @@ export default function SolvePage() {
             <button
               onClick={handleAnalyze}
               disabled={isProcessing || !selectedFile}
-              className="w-full h-14 text-lg font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
+              className="w-full h-14 text-lg font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
             >
               {isProcessing ? (
                 <><Loader2 className="w-5 h-5 animate-spin" />AI 분석 중...</>
@@ -427,22 +429,22 @@ export default function SolvePage() {
         {/* 이용 방법 섹션 */}
         <section className="w-full text-center pb-12">
           <div className="mb-10">
-            <span className="block text-sm font-semibold text-gray-400 tracking-wider mb-2">How it Works</span>
-            <h2 className="text-4xl font-extrabold text-gray-900">이용 방법</h2>
+            <span className="block text-sm font-semibold text-gray-400 dark:text-gray-500 tracking-wider mb-2">How it Works</span>
+            <h2 className="text-4xl font-extrabold text-gray-900 dark:text-white">이용 방법</h2>
           </div>
           <div className="relative flex flex-col md:flex-row justify-between items-start max-w-3xl mx-auto">
             {/* 연결선 */}
-            <div className="absolute top-12 left-0 w-full h-px bg-gray-200 hidden md:block" style={{ zIndex: 0 }} />
+            <div className="absolute top-12 left-0 w-full h-px bg-gray-200 dark:bg-gray-700 hidden md:block" style={{ zIndex: 0 }} />
             {[
               { icon: CloudUpload, label: '1. 문제 업로드' },
               { icon: Bot, label: '2. AI 분석 및 변환' },
               { icon: Lightbulb, label: '3. 해설 및 유사 문제 받기' },
             ].map(({ icon: Icon, label }) => (
               <div key={label} className="relative flex flex-col items-center w-full md:w-1/3 z-10 mb-8 md:mb-0">
-                <div className="w-24 h-24 rounded-full bg-white border-4 border-blue-100 flex items-center justify-center mb-6 shadow-sm">
-                  <Icon className="w-10 h-10 text-blue-500" />
+                <div className="w-24 h-24 rounded-full bg-white dark:bg-gray-800 border-4 border-blue-100 dark:border-blue-900 flex items-center justify-center mb-6 shadow-sm">
+                  <Icon className="w-10 h-10 text-blue-500 dark:text-blue-400" />
                 </div>
-                <p className="text-lg font-bold text-gray-900">{label}</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">{label}</p>
               </div>
             ))}
           </div>
