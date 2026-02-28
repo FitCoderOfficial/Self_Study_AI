@@ -8,27 +8,27 @@ import Navigation from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CheckCircle, Clock, Image as ImageIcon, Copy, Loader2, Hash, Award } from 'lucide-react';
-import { StorageManager, parseProblemText, type ParsedProblem } from '@/lib/utils';
+import { ArrowLeft, Clock, Image as ImageIcon, Copy, Loader2, BookOpen, Sparkles, CheckCircle } from 'lucide-react';
 
 declare global {
   interface Window {
     MathJax?: {
       typesetPromise?: () => Promise<void>;
-      startup?: {
-        promise?: Promise<void>;
-      };
+      startup?: { promise?: Promise<void> };
     };
   }
 }
 
 interface ProcessedResult {
   id: string;
+  questionId?: string;
   originalImage: string;
   fileName: string;
-  processedText: string;
-  timestamp: string;
+  ocrText: string;
+  formattedProblem: string;
+  explanation: string;
   subject: string;
+  timestamp: string;
   confidence: number;
 }
 
@@ -36,366 +36,291 @@ export default function NewQuestionPage() {
   const params = useParams();
   const router = useRouter();
   const [result, setResult] = useState<ProcessedResult | null>(null);
-  const [parsedProblem, setParsedProblem] = useState<ParsedProblem | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'problem' | 'explanation' | null>(null);
+  const [activeTab, setActiveTab] = useState<'problem' | 'explanation'>('problem');
+  const [isGeneratingSimilar, setIsGeneratingSimilar] = useState(false);
+  const [similarProblem, setSimilarProblem] = useState<string | null>(null);
 
-  // MathJax 타입셋팅 함수 최적화
   const typesetMath = async () => {
     if (window.MathJax?.typesetPromise) {
       try {
         await window.MathJax.startup?.promise;
         await window.MathJax.typesetPromise();
-      } catch (error) {
-        console.error('MathJax typeset error:', error);
+      } catch (e) {
+        console.error('MathJax error:', e);
       }
     }
   };
 
   useEffect(() => {
-    // localStorage에서 결과 데이터 즉시 가져오기
-    const resultData = localStorage.getItem(`processedResult_${params.id}`);
-    
-    if (resultData) {
-      const parsedResult = JSON.parse(resultData);
-      // 로딩 애니메이션을 위한 최소 대기 시간 (UX 개선)
+    const data = localStorage.getItem(`processedResult_${params.id}`);
+    if (data) {
       setTimeout(() => {
-        setResult(parsedResult);
-        // 텍스트 파싱
-        if (parsedResult.processedText) {
-          const parsed = parseProblemText(parsedResult.processedText);
-          setParsedProblem(parsed);
-        }
+        setResult(JSON.parse(data));
         setIsLoading(false);
-      }, 1000); // 1초로 단축
+      }, 800);
     } else {
-      // 결과를 찾을 수 없으면 즉시 리다이렉트
       router.push('/solve');
     }
   }, [params.id, router]);
 
-  // 결과 텍스트가 변경될 때마다 MathJax 재렌더링
   useEffect(() => {
-    if (result?.processedText && !isLoading) {
-      const timer = setTimeout(typesetMath, 100);
+    if (result && !isLoading) {
+      const timer = setTimeout(typesetMath, 200);
       return () => clearTimeout(timer);
     }
-  }, [result?.processedText, isLoading]);
+  }, [result, isLoading, activeTab]);
 
-  const handleLogin = () => setIsLoggedIn(true);
-  const handleLogout = () => setIsLoggedIn(false);
+  const handleCopy = async (text: string, type: 'problem' | 'explanation') => {
+    const clean = text.replace(/<[^>]*>/g, '');
+    await navigator.clipboard.writeText(clean);
+    setCopied(type);
+    setTimeout(() => setCopied(null), 2000);
+  };
 
   const handleSaveToArchive = () => {
     if (!result) return;
-    
-    // 스토리지 정리 먼저 실행 (StorageManager 사용)
-    if (StorageManager.needsCleanup()) {
-      StorageManager.cleanupOldData();
-    }
-    
     const archiveItem = {
       id: result.id,
+      questionId: result.questionId,
       subject: result.subject,
-      question: result.processedText,
-      answer: "AI가 분석한 문제입니다",
+      question: result.formattedProblem || result.ocrText,
+      explanation: result.explanation,
       date: new Date(result.timestamp).toISOString().split('T')[0],
-      isCorrect: true,
-      imageUrl: result.originalImage.length > 100000 ? '' : result.originalImage, // 큰 이미지는 저장하지 않음
-      difficulty: "medium" as const,
-      tags: ["AI 처리", result.subject]
+      isCorrect: null,
+      difficulty: 'medium',
+      tags: ['AI 처리', result.subject],
     };
-
     try {
-      const existingArchive = JSON.parse(localStorage.getItem('archivedQuestions') || '[]');
-      
-      // 아카이브도 최대 30개로 제한 (StorageManager와 일관성 유지)
-      if (existingArchive.length >= 30) {
-        existingArchive.pop(); // 가장 오래된 항목 제거
+      const existing = JSON.parse(localStorage.getItem('archivedQuestions') || '[]');
+      existing.unshift(archiveItem);
+      if (existing.length > 50) existing.splice(50);
+      localStorage.setItem('archivedQuestions', JSON.stringify(existing));
+      alert('아카이브에 저장되었습니다!');
+    } catch {
+      alert('저장 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleGenerateSimilar = async () => {
+    if (!result) return;
+    setIsGeneratingSimilar(true);
+    setSimilarProblem(null);
+    try {
+      const response = await fetch('/api/similar-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          problemText: result.formattedProblem || result.ocrText,
+          subject: result.subject,
+          questionId: result.questionId,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSimilarProblem(data.similarProblem);
+        setTimeout(typesetMath, 300);
       }
-      
-      existingArchive.unshift(archiveItem);
-      
-      // StorageManager를 사용하여 안전하게 저장
-      const saved = StorageManager.safeSetItem('archivedQuestions', JSON.stringify(existingArchive));
-      
-      if (saved) {
-        alert('✅ 아카이브에 저장되었습니다!');
-      } else {
-        // 여전히 저장 실패 시, 이미지 없이 저장 시도
-        const itemWithoutImage = { ...archiveItem, imageUrl: '' };
-        existingArchive[0] = itemWithoutImage;
-        const savedWithoutImage = StorageManager.safeSetItem('archivedQuestions', JSON.stringify(existingArchive));
-        
-        if (savedWithoutImage) {
-          alert('✅ 아카이브에 저장되었습니다! (이미지는 용량 문제로 제외됨)');
-        } else {
-          alert('❌ 스토리지 용량이 부족하여 저장할 수 없습니다. 브라우저 데이터를 정리해주세요.');
-        }
-      }
-    } catch (error) {
-      console.error('저장 오류:', error);
-      alert('❌ 저장 중 오류가 발생했습니다. 스토리지 용량이 부족할 수 있습니다.');
+    } catch {
+      alert('유사 문제 생성 중 오류가 발생했습니다.');
+    } finally {
+      setIsGeneratingSimilar(false);
     }
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
-        <Navigation isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} />
-        
-        <main className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="mb-8">
-              <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Loader2 className="w-10 h-10 text-blue-600 dark:text-blue-400 animate-spin" />
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-                AI 분석 중... 🔍
-              </h1>
-              <p className="text-gray-600 dark:text-gray-300 mb-6">
-                AI가 이미지를 텍스트로 변환하고 있습니다
-              </p>
-              
-              {/* 로딩 애니메이션 */}
-              <div className="flex justify-center space-x-2 mb-8">
-                <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              </div>
-            </div>
+        <Navigation />
+        <main className="container mx-auto px-4 py-16 text-center">
+          <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
           </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">결과 불러오는 중...</h1>
+          <p className="text-gray-600 dark:text-gray-300">AI가 분석한 결과를 가져오고 있습니다</p>
         </main>
       </div>
     );
   }
 
-  if (!result) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
-        <Navigation isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} />
-        <main className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <p className="text-gray-600 dark:text-gray-300">결과를 불러오는 중...</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  if (!result) return null;
+
+  const displayText = activeTab === 'problem'
+    ? (result.formattedProblem || result.ocrText)
+    : result.explanation;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
-      <Navigation isLoggedIn={isLoggedIn} onLogin={handleLogin} onLogout={handleLogout} />
-      
-      <main className="container mx-auto px-4 py-8">
+      <Navigation />
+
+      <main className="container mx-auto px-4 py-8 max-w-6xl">
         {/* 헤더 */}
-        <div className="text-center justify-center mb-8">
-          <div className="flex items-center justify-center gap-4 mb-4">
-            <Link href="/solve">
-              <Button variant="outline" size="sm" className="dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                문제 풀이로 돌아가기
-              </Button>
-            </Link>
-            <Badge variant="secondary" className="flex items-center gap-1 dark:bg-gray-700 dark:text-gray-300">
+        <div className="flex items-center justify-between mb-6">
+          <Link href="/solve">
+            <Button variant="outline" size="sm" className="dark:border-gray-600 dark:text-gray-300">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              돌아가기
+            </Button>
+          </Link>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+              {result.subject}
+            </Badge>
+            <Badge variant="secondary" className="flex items-center gap-1 dark:bg-gray-700">
               <Clock className="w-3 h-3" />
               {new Date(result.timestamp).toLocaleString('ko-KR')}
             </Badge>
           </div>
-          
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-            새로운 문제 처리 완료! 🎉
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            이미지에서 추출한 수학 문제와 기호들이 정확하게 렌더링됩니다.
-          </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-2 gap-6">
           {/* 원본 이미지 */}
           <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100 text-lg">
                 <ImageIcon className="w-5 h-5" />
                 원본 이미지
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <Image
-                  src={result.originalImage}
-                  alt="원본 이미지"
-                  width={600}
-                  height={400}
-                  className="w-full h-auto rounded-lg border dark:border-gray-700 shadow-sm"
-                  unoptimized
-                />
-                <div className="flex gap-2">
-                  <Badge variant="outline" className="dark:bg-gray-700 dark:text-gray-300">
-                    신뢰도: {result.confidence}%
-                  </Badge>
-                </div>
-              </div>
+              <Image
+                src={result.originalImage}
+                alt="원본 이미지"
+                width={600}
+                height={400}
+                className="w-full h-auto rounded-lg border dark:border-gray-700 shadow-sm"
+                unoptimized
+              />
             </CardContent>
           </Card>
 
-          {/* 처리된 텍스트 */}
+          {/* AI 분석 결과 */}
           <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100 text-lg">
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 AI 분석 결과
               </CardTitle>
-              
-              {/* 문제 번호 및 배점 표시 */}
-              {parsedProblem && (parsedProblem.number || parsedProblem.score) && (
-                <div className="bg-slate-700/50 rounded-lg p-3 mt-4">
-                  <div className="flex items-center justify-between text-white">
-                    {parsedProblem.number && (
-                      <div className="flex items-center">
-                        <span className="text-gray-300 text-sm">문제 번호</span>
-                        <span className="ml-2 text-xl font-bold text-blue-400">{parsedProblem.number}</span>
-                      </div>
-                    )}
-                    {parsedProblem.score && (
-                      <div className="flex items-center">
-                        <span className="text-gray-300 text-sm">배점</span>
-                        <span className="ml-2 text-lg font-semibold text-purple-400">{parsedProblem.score}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              {/* 탭 */}
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => setActiveTab('problem')}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    activeTab === 'problem'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+                  }`}
+                >
+                  문제 텍스트
+                </button>
+                <button
+                  onClick={() => setActiveTab('explanation')}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    activeTab === 'explanation'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+                  }`}
+                >
+                  AI 해설
+                </button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {/* 포맷된 문제 내용 표시 */}
-                <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border dark:border-gray-600 shadow-sm min-h-[200px] text-gray-900 dark:text-gray-100 math-problem-display">
-                  {parsedProblem ? (
-                    <div className="leading-relaxed space-y-3">
-                      {parsedProblem.formattedContent.split('\n').map((line, index) => (
-                        <div 
-                          key={index}
-                          className="text-base"
-                          dangerouslySetInnerHTML={{ 
-                            __html: line
-                              .replace(/\$\$([^$]+)\$\$/g, '<div class="math-display my-4 text-center">$$$$1$$</div>')
-                              .replace(/\$([^$]+)\$/g, '<span class="math-inline">$$$1$$</span>')
-                              .replace(/\|([^|]+)\|/g, '<span class="absolute-value">|$1|</span>')
-                              .replace(/\\\{([^}]+)\\\}/g, '<span class="set-notation">{$1}</span>')
-                          }}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div 
-                      dangerouslySetInnerHTML={{ __html: result.processedText }}
-                    />
-                  )}
-                </div>
-                
-                <div className="flex flex-wrap gap-2">
-                  <Button 
-                    onClick={() => {
-                      const textToCopy = parsedProblem?.formattedContent || result.processedText.replace(/<[^>]*>/g, '');
-                      navigator.clipboard.writeText(textToCopy).then(() => {
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                      });
-                    }}
-                    variant="outline" 
-                    size="sm"
-                    className={copied ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-900/30 dark:border-green-700 dark:text-green-400" : "dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"}
-                  >
-                    <Copy className="w-4 h-4 mr-2" />
-                    {copied ? "복사됨!" : "텍스트 복사"}
-                  </Button>
-                </div>
+              <div className="bg-white dark:bg-gray-700 p-5 rounded-lg border dark:border-gray-600 min-h-[300px] text-gray-900 dark:text-gray-100 leading-relaxed overflow-auto">
+                {displayText ? (
+                  <div
+                    className="whitespace-pre-wrap text-base"
+                    dangerouslySetInnerHTML={{ __html: displayText.replace(/\n/g, '<br/>') }}
+                  />
+                ) : (
+                  <p className="text-gray-400 dark:text-gray-500 italic">내용이 없습니다.</p>
+                )}
               </div>
+              <Button
+                onClick={() => handleCopy(displayText, activeTab)}
+                variant="outline"
+                size="sm"
+                className="mt-3 dark:border-gray-600 dark:text-gray-300"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                {copied === activeTab ? '복사됨!' : '텍스트 복사'}
+              </Button>
             </CardContent>
           </Card>
         </div>
 
-        {/* 분석 결과 관리 */}
-        <div className="grid md:grid-cols-2 gap-6 mt-8">
-          {/* 저장 및 공유 */}
-          <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
-                💾 저장 & 공유
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-4">
-                <Button 
-                  onClick={handleSaveToArchive}
-                  className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white"
+        {/* 유사 문제 생성 */}
+        <Card className="mt-6 dark:bg-gray-800 dark:border-gray-700">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
+              <Sparkles className="w-5 h-5 text-purple-600" />
+              유사 문제 생성
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!similarProblem ? (
+              <div className="text-center py-6">
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  이 문제와 유사한 새로운 문제를 AI가 생성합니다
+                </p>
+                <Button
+                  onClick={handleGenerateSimilar}
+                  disabled={isGeneratingSimilar}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-8"
                 >
-                  🗂️ 아카이브에 저장
-                </Button>
-                <Button 
-                  onClick={() => {
-                    const notionUrl = `https://www.notion.so/new?content=${encodeURIComponent(result?.processedText || '')}`;
-                    window.open(notionUrl, '_blank');
-                  }}
-                  variant="outline" 
-                  className="w-full h-12 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
-                >
-                  📝 Notion으로 내보내기
-                </Button>
-                <Button 
-                  onClick={() => {
-                    if (navigator.share && result) {
-                      navigator.share({
-                        title: 'AI 분석 결과',
-                        text: parsedProblem?.formattedContent || result.processedText.replace(/<[^>]*>/g, '') // HTML 태그 제거
-                      }).catch(console.error);
-                    } else {
-                      const textToCopy = parsedProblem?.formattedContent || result.processedText.replace(/<[^>]*>/g, '');
-                      navigator.clipboard.writeText(textToCopy);
-                    }
-                  }}
-                  variant="outline" 
-                  className="w-full h-12 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
-                >
-                  📤 공유하기
+                  {isGeneratingSimilar ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />유사 문제 생성 중...</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4 mr-2" />유사 문제 생성하기</>
+                  )}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            ) : (
+              <div className="space-y-3">
+                <div
+                  className="bg-purple-50 dark:bg-purple-900/20 p-5 rounded-lg border border-purple-200 dark:border-purple-700 leading-relaxed text-gray-900 dark:text-gray-100 whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{ __html: similarProblem.replace(/\n/g, '<br/>') }}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleCopy(similarProblem, 'problem')}
+                    variant="outline"
+                    size="sm"
+                    className="dark:border-gray-600 dark:text-gray-300"
+                  >
+                    <Copy className="w-4 h-4 mr-2" />복사
+                  </Button>
+                  <Button
+                    onClick={() => { setSimilarProblem(null); handleGenerateSimilar(); }}
+                    variant="outline"
+                    size="sm"
+                    className="dark:border-gray-600 dark:text-gray-300"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />다시 생성
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          {/* 다음 작업 */}
-          <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
-                🚀 다음 작업
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-4">
-                <Link href="/solve">
-                  <Button className="w-full h-12 bg-green-600 hover:bg-green-700 text-white">
-                    ➕ 새로운 문제 풀기
-                  </Button>
-                </Link>
-                <Link href="/archive">
-                  <Button variant="outline" className="w-full h-12 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700">
-                    📚 내 아카이브 보기
-                  </Button>
-                </Link>
-                <Button 
-                  onClick={() => {
-                    const studyUrl = `https://www.google.com/search?q=${encodeURIComponent('수학 문제 ' + (result?.subject || ''))}`;
-                    window.open(studyUrl, '_blank');
-                  }}
-                  variant="outline" 
-                  className="w-full h-12 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
-                >
-                  🔍 유사한 문제 찾기
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        {/* 액션 버튼 */}
+        <div className="grid md:grid-cols-3 gap-4 mt-6">
+          <Button onClick={handleSaveToArchive} className="h-12 bg-blue-600 hover:bg-blue-700 text-white">
+            <BookOpen className="w-4 h-4 mr-2" />
+            히스토리에 저장
+          </Button>
+          <Link href="/solve">
+            <Button variant="outline" className="w-full h-12 dark:border-gray-600 dark:text-gray-300">
+              새로운 문제 풀기
+            </Button>
+          </Link>
+          <Link href="/archive">
+            <Button variant="outline" className="w-full h-12 dark:border-gray-600 dark:text-gray-300">
+              학습 히스토리 보기
+            </Button>
+          </Link>
         </div>
       </main>
     </div>

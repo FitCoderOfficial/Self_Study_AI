@@ -1,144 +1,125 @@
-# 셀프스터디 AI
+# 수능 AI 도우미
 
-청각장애 학생들을 위한 AI 기반 시험문제 풀이 웹서비스
+수능 준비생을 위한 AI 기반 학습 도우미 서비스. 문제 이미지를 업로드하면 GPT-4o Vision이 문제를 인식하고 단계별 해설을 생성합니다.
 
-## 🎯 프로젝트 개요
+## 주요 기능
 
-셀프스터디 AI는 청각장애 학생들이 시험공부를 할 때 겪는 어려움을 AI 기술을 통해 해결하고, 동등한 교육 기회를 제공하는 웹서비스입니다.
+- **이미지 → 해설 자동 생성**: 문제 사진 업로드 시 GPT-4o Vision이 OCR + 해설을 한 번에 처리
+- **유사 문제 생성**: AI가 수능 스타일의 유사 문제를 자동으로 생성
+- **수능 기출 문제**: 수학/영어/국어 수능 기출 문제 열람 및 유사 문제 생성
+- **학습 아카이브**: 풀었던 문제와 해설을 과목별로 저장/조회
+- **회원 인증**: 이메일 회원가입/로그인, 비밀번호 찾기 (Supabase Auth)
+- **다크 모드**: 라이트/다크 테마 지원
 
-### 핵심 가치
-- **접근성**: 시각적 정보(이미지, 영상)를 텍스트 정보로 전환하여 학습 장벽 해소
-- **효율성**: 실시간에 가까운 문제 풀이 및 해설 제공으로 학습 시간 단축
-- **개인화**: 사용자별 질문 기록 아카이브를 통한 맞춤형 학습 지원
+## 기술 스택
 
-## 🚀 주요 기능
+| 분류 | 기술 |
+|------|------|
+| Framework | Next.js 15.5 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS 4, shadcn/ui |
+| Backend | Supabase (PostgreSQL + Auth + Storage) |
+| AI | OpenAI GPT-4o Vision |
+| Icons | Lucide React |
 
-### Phase 1: 핵심 기능
-- **문제 입력**: 스마트폰 카메라나 PC 웹캠을 통한 실시간 촬영 및 이미지 파일 업로드 (드래그 앤 드롭 지원)
-- **문제 인식 (Mathpix API)**: 업로드된 이미지에서 수학 기호, 텍스트, 수식을 정확하게 인식하여 LaTeX 형식으로 변환
-- **정답 및 해설 생성**: 인식된 문제의 정답과 상세한 단계별 풀이 과정을 텍스트로 생성
-- **결과 출력**: 원본 문제 이미지와 함께 AI가 생성한 정답 및 텍스트 해설을 명확하게 표시
+## 시작하기
 
-### Phase 2: 개인화 및 확장 기능
-- **로그인/회원가입**: 소셜 로그인(구글, 카카오 등) 및 이메일 기반의 간편한 회원가입
-- **질문 기록 저장**: 사용자가 질문한 문제 이미지와 AI의 답변을 개인 계정에 자동 저장
-- **질문 아카이브**: 과거에 질문했던 문제들을 과목별, 날짜별로 조회하고 검색
-- **오답노트 기능**: 사용자가 '오답'으로 표시한 문제들을 따로 모아볼 수 있는 기능
-
-## 🛠️ 기술 스택
-
-- **Frontend**: Next.js 15, TypeScript, Tailwind CSS
-- **UI Components**: shadcn/ui
-- **Icons**: Lucide React
-- **Image Recognition**: Mathpix API
-- **Styling**: Tailwind CSS with custom accessibility features
-
-## 🎨 접근성 기능
-
-청각장애 학생들을 위한 특별한 접근성 기능들을 제공합니다:
-
-- **폰트 크기 조절**: 12px~24px 범위에서 자유롭게 조절 가능
-- **고대비 모드**: 시각적 명확성을 위한 고대비 색상 테마
-- **스크린 리더 모드**: 텍스트 가독성 향상을 위한 특별한 스타일링
-- **키보드 네비게이션**: 마우스 없이도 모든 기능 사용 가능
-- **애니메이션 감소**: 움직임에 민감한 사용자를 위한 옵션
-
-## 📱 반응형 디자인
-
-- **모바일 우선**: 스마트폰에서의 사용을 최우선으로 고려
-- **태블릿 지원**: 중간 크기 화면에서의 최적화된 레이아웃
-- **데스크톱 지원**: 큰 화면에서의 효율적인 정보 표시
-
-## 🚀 시작하기
-
-### 설치
+### 1. 의존성 설치
 
 ```bash
-# 의존성 설치
 npm install
 ```
 
-### Mathpix API 설정
+### 2. 환경 변수 설정
 
-1. [Mathpix](https://mathpix.com/)에서 계정을 생성하고 API 키를 발급받습니다
-2. 프로젝트 루트에 `.env.local` 파일을 생성합니다:
+`.env.local` 파일을 생성하고 아래 내용을 입력합니다:
 
 ```bash
-# .env.local
-MATHPIX_APP_ID=your_app_id_here
-MATHPIX_APP_KEY=your_app_key_here
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# OpenAI
+OPENAI_API_KEY=your_openai_api_key
 ```
 
-3. 환경변수가 없는 경우 개발용 mock 데이터가 사용됩니다
+### 3. Supabase 데이터베이스 설정
 
-### 개발 서버 실행
+[Supabase Dashboard](https://supabase.com/dashboard) → SQL Editor에서 `supabase-schema.sql` 파일의 내용을 실행합니다.
 
 ```bash
-# 개발 서버 실행
+# 테이블 구성:
+# - profiles       : 사용자 프로필
+# - questions      : 업로드한 문제 (OCR 텍스트, AI 해설)
+# - similar_questions : AI 생성 유사 문제
+# - csat_problems  : 수능 기출 문제
+```
+
+### 4. 개발 서버 실행
+
+```bash
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3100`으로 접속합니다.
+`http://localhost:3100` 에서 확인합니다.
 
-### 빌드
+### 5. 프로덕션 빌드
 
 ```bash
-# 프로덕션 빌드
 npm run build
-
-# 프로덕션 서버 실행
 npm start
 ```
 
-## 📁 프로젝트 구조
+## 프로젝트 구조
 
 ```
 src/
-├── app/                    # Next.js App Router
-│   ├── page.tsx           # 메인 페이지
-│   ├── solve/             # 문제 풀이 페이지
-│   ├── archive/           # 질문 아카이브 페이지
-│   ├── profile/           # 마이페이지
-│   ├── layout.tsx         # 루트 레이아웃
-│   └── globals.css        # 전역 스타일
-├── components/            # 재사용 가능한 컴포넌트
-│   ├── ui/               # shadcn/ui 컴포넌트
-│   ├── Navigation.tsx    # 네비게이션 컴포넌트
-│   └── AccessibilityFeatures.tsx  # 접근성 기능
-└── lib/                  # 유틸리티 함수
-    └── utils.ts          # 공통 유틸리티
+├── app/
+│   ├── page.tsx                  # 홈 (랜딩)
+│   ├── login/page.tsx            # 로그인
+│   ├── signup/page.tsx           # 회원가입
+│   ├── forgot-password/page.tsx  # 비밀번호 찾기
+│   ├── reset-password/page.tsx   # 비밀번호 재설정
+│   ├── solve/page.tsx            # 문제 이미지 업로드
+│   ├── new-question/[id]/        # 문제 해설 + 유사문제
+│   ├── archive/page.tsx          # 학습 기록
+│   ├── csat/page.tsx             # 수능 기출 문제
+│   ├── profile/page.tsx          # 마이페이지
+│   ├── auth/callback/route.ts    # Supabase OAuth 콜백
+│   └── api/
+│       ├── process-image/        # GPT-4o Vision OCR + 해설
+│       ├── similar-question/     # 유사 문제 생성
+│       └── csat/                 # 수능 기출 데이터
+├── components/
+│   ├── ui/                       # shadcn/ui 컴포넌트
+│   └── Navigation.tsx            # 네비게이션 바
+├── lib/
+│   ├── supabase/
+│   │   ├── client.ts             # 브라우저 Supabase 클라이언트
+│   │   └── server.ts             # 서버 Supabase 클라이언트
+│   └── utils.ts
+├── middleware.ts                  # 인증 라우트 가드
+supabase-schema.sql               # DB 스키마 (최초 설정 시 실행)
+supabase-fix.sql                  # DB 패치 (기존 스키마에 적용)
 ```
 
-## 🎯 사용자 스토리
+## 인증 플로우
 
-### 김민준 (17세, 고등학생)
-> "수학 문제를 풀다가 막히면 선생님께 질문하기 어려웠어요. 셀프스터디 AI를 사용한 후로는 문제를 찍으면 바로 해설을 볼 수 있어서 혼자서도 충분히 공부할 수 있게 되었습니다. 특히 수식이 복잡한 문제도 정확하게 인식해주어서 정말 도움이 됩니다."
+```
+회원가입 → 이메일 인증 → 로그인
+비밀번호 찾기 → 이메일 링크 클릭 → /reset-password → 새 비밀번호 설정
+```
 
-## 🔮 향후 계획
+보호된 라우트 (`/archive`, `/profile`)는 로그인 없이 접근 시 `/login`으로 리다이렉트됩니다.
 
-- **수어 영상 해설**: AI가 생성한 해설을 수어 영상으로 제공
-- **과목 확장**: 코딩, 역사 등 다양한 과목 지원
-- **실시간 협업**: 선생님과의 실시간 질문답변 기능
-- **학습 분석**: AI 기반 학습 패턴 분석 및 개인화된 학습 계획 제안
+## Supabase 설정 가이드
 
-## 📄 라이선스
+1. **이메일 인증**: Dashboard → Authentication → Providers → Email
+2. **리다이렉트 URL 허용**: Dashboard → Authentication → URL Configuration
+   - `http://localhost:3100/auth/callback`
+   - `http://localhost:3100/reset-password`
+3. **SQL 스키마 실행**: Dashboard → SQL Editor → `supabase-schema.sql` 붙여넣기 후 실행
 
-이 프로젝트는 MIT 라이선스 하에 배포됩니다.
+## 라이선스
 
-## 🤝 기여하기
-
-프로젝트에 기여하고 싶으시다면 다음 단계를 따라주세요:
-
-1. 이 저장소를 포크합니다
-2. 새로운 기능 브랜치를 생성합니다 (`git checkout -b feature/AmazingFeature`)
-3. 변경사항을 커밋합니다 (`git commit -m 'Add some AmazingFeature'`)
-4. 브랜치에 푸시합니다 (`git push origin feature/AmazingFeature`)
-5. Pull Request를 생성합니다
-
-## 📞 문의
-
-프로젝트에 대한 문의사항이 있으시면 언제든지 연락주세요.
-
----
-
-**셀프스터디 AI** - 모든 학생이 동등한 교육 기회를 누릴 수 있도록
+MIT

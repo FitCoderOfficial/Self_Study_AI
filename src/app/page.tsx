@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Navigation from "@/components/Navigation";
 import AccessibilityFeatures from "@/components/AccessibilityFeatures";
 import { Button } from "@/components/ui/button";
@@ -8,25 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Camera, Upload, BookOpen, Brain, Users, Zap, Sparkles } from "lucide-react";
 
 export default function Home() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    alert("로그인되었습니다! (데모용)");
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    alert("로그아웃되었습니다! (데모용)");
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Navigation 
-        isLoggedIn={isLoggedIn} 
-        onLogin={handleLogin} 
-        onLogout={handleLogout} 
-      />
+      <Navigation />
       
       <main>
         {/* 히어로 섹션 */}

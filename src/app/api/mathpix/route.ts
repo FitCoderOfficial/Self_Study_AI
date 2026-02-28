@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     console.log('현재 작업 디렉토리:', process.cwd());
     
     // .env.local 파일 존재 확인
-    const fs = require('fs');
+    const fs = await import('fs');
     const envPath = path.resolve(process.cwd(), '.env.local');
     const hasEnvFile = fs.existsSync(envPath);
     console.log('.env.local 파일 경로:', envPath);
