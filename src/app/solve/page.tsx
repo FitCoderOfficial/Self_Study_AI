@@ -157,6 +157,9 @@ export default function SolvePage() {
         formattedProblem: result.data.formattedProblem,
         explanation: result.data.explanation,
         subject: result.data.subject,
+        score: result.data.score ?? null,
+        problemNumber: result.data.problemNumber ?? null,
+        problemArea: result.data.problemArea ?? '',
         timestamp: new Date().toISOString(),
         confidence: 95,
       };

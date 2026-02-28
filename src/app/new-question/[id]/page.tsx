@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeft, Clock, Image as ImageIcon, Copy, Loader2,
-  BookOpen, Sparkles, CheckCircle, Tag, RefreshCw, ChevronDown, ChevronUp
+  BookOpen, Sparkles, CheckCircle, Tag, RefreshCw, ChevronDown, ChevronUp, Hash, Star
 } from 'lucide-react';
 import type { SimilarQuestion } from '@/app/api/similar-question/route';
 
@@ -24,6 +24,9 @@ interface ProcessedResult {
   formattedProblem: string;
   explanation: string;
   subject: string;
+  score: number | null;
+  problemNumber: number | null;
+  problemArea: string;
   timestamp: string;
 }
 
@@ -143,17 +146,37 @@ export default function NewQuestionPage() {
 
       <main className="container mx-auto px-4 py-8 max-w-7xl">
         {/* 헤더 */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
           <Link href="/solve">
             <Button variant="outline" size="sm" className="dark:border-gray-600 dark:text-gray-300">
               <ArrowLeft className="w-4 h-4 mr-2" />
               돌아가기
             </Button>
           </Link>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+
+          {/* 메타데이터 태그 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {result.problemNumber && (
+              <Badge className="bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900 flex items-center gap-1">
+                <Hash className="w-3 h-3" />
+                {result.problemNumber}번
+              </Badge>
+            )}
+            {result.score && (
+              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 flex items-center gap-1">
+                <Star className="w-3 h-3" />
+                {result.score}점
+              </Badge>
+            )}
             <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
               {result.subject}
             </Badge>
+            {result.problemArea && (
+              <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 flex items-center gap-1">
+                <Tag className="w-3 h-3" />
+                {result.problemArea}
+              </Badge>
+            )}
             <Badge variant="secondary" className="flex items-center gap-1 dark:bg-gray-700 dark:text-gray-300">
               <Clock className="w-3 h-3" />
               {new Date(result.timestamp).toLocaleString('ko-KR')}

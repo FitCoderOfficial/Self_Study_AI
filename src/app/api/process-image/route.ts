@@ -23,6 +23,9 @@ type AnalysisResult = {
   formattedProblem: string;
   explanation: string;
   detectedSubject: string;
+  score: number | null;
+  problemNumber: number | null;
+  problemArea: string;
 };
 
 function buildPrompt(subject: string): string {
@@ -31,18 +34,31 @@ function buildPrompt(subject: string): string {
 
 이미지에서 수능 문제를 분석하여 아래 JSON 형식으로 반환하세요.
 
-규칙:
-- 수학 수식은 반드시 LaTeX 형식으로 표현하세요: 인라인은 $수식$, 블록은 $$수식$$
+[수식 표기 규칙 — 반드시 준수]
+- 모든 수학 수식, 변수, 함수는 예외 없이 LaTeX로 감싸세요
+- 인라인 수식: $수식$ (예: $x^2$, $\\frac{a}{b}$, $\\sqrt{n}$)
+- 블록 수식 (별도 줄): $$수식$$ (예: $$\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}$$)
+- 지수: $x^{2}$ (중괄호 필수), 아래첨자: $a_{n}$
+- 분수: $\\frac{분자}{분모}$, 루트: $\\sqrt{내용}$
+- 절댓값: $|x|$, 극한: $\\lim_{x \\to \\infty}$
+- 그리스 문자: $\\alpha$, $\\beta$, $\\theta$, $\\pi$
 - 선택지는 ①②③④⑤ 기호를 사용하세요
-- 문제 번호와 배점이 있으면 포함하세요
-- explanation은 **1단계**, **2단계** 형식으로 단계를 구분하고, 정답과 각 오답의 이유를 설명하세요
 
-반환 JSON:
+[추출 규칙]
+- problemNumber: 문제 번호 (숫자만, 없으면 null)
+- score: 배점 (숫자만, 예: "[3점]" → 3, 없으면 null)
+- problemArea: 문제가 속하는 세부 영역 (예: "수열", "미분", "이차방정식", "독해", "문학")
+- explanation은 **1단계**, **2단계** 형식으로 각 단계를 구분하고, 최종 정답을 명시
+
+반환 JSON (이 형식만 반환, 다른 텍스트 금지):
 {
   "rawText": "이미지에서 인식한 원본 텍스트 그대로",
-  "formattedProblem": "깔끔하게 정리된 문제 전체 (선택지 포함, LaTeX 수식 적용)",
-  "explanation": "단계별 상세 풀이 및 해설 (LaTeX 수식 적용, 정답 명시)",
-  "detectedSubject": "수학 또는 영어 또는 국어 또는 사회 또는 과학 또는 기타"
+  "formattedProblem": "깔끔하게 정리된 문제 (문제번호·배점 제외, LaTeX 수식 적용, 선택지 포함)",
+  "explanation": "단계별 상세 풀이 및 해설 (LaTeX 수식 적용, 정답 번호 명시)",
+  "detectedSubject": "수학 또는 영어 또는 국어 또는 사회 또는 과학 또는 기타",
+  "score": 3,
+  "problemNumber": 15,
+  "problemArea": "수열과 극한"
 }`;
 }
 
@@ -74,6 +90,9 @@ async function analyzeWithGemini(base64: string, mimeType: string, subject: stri
         formattedProblem: parsed.formattedProblem || parsed.rawText || '',
         explanation: parsed.explanation || '해설을 생성할 수 없습니다.',
         detectedSubject: parsed.detectedSubject || subject || '기타',
+        score: typeof parsed.score === 'number' ? parsed.score : null,
+        problemNumber: typeof parsed.problemNumber === 'number' ? parsed.problemNumber : null,
+        problemArea: parsed.problemArea || '',
       };
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
@@ -109,6 +128,9 @@ async function analyzeWithGPT4o(base64: string, mimeType: string, subject: strin
     formattedProblem: parsed.formattedProblem || parsed.rawText || '',
     explanation: parsed.explanation || '해설을 생성할 수 없습니다.',
     detectedSubject: parsed.detectedSubject || subject || '기타',
+    score: typeof parsed.score === 'number' ? parsed.score : null,
+    problemNumber: typeof parsed.problemNumber === 'number' ? parsed.problemNumber : null,
+    problemArea: parsed.problemArea || '',
   };
 }
 
@@ -186,6 +208,9 @@ export async function POST(request: NextRequest) {
         formattedProblem: result.formattedProblem,
         explanation: result.explanation,
         subject: result.detectedSubject,
+        score: result.score,
+        problemNumber: result.problemNumber,
+        problemArea: result.problemArea,
         questionId,
       },
     });
