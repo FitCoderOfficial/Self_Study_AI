@@ -42,26 +42,30 @@ const DIFFICULTY_MAP: Record<string, { label: string; color: string }> = {
   hard: { label: '어려움', color: 'bg-red-100 text-red-700' },
 };
 
-/** KICE 공식 시험지 URL 맵 (학년도 기준, 확인된 URL만 등록) */
-const KICE_URLS: Record<number, Partial<Record<number, string>>> = {
-  2026: {
-    11: 'https://cdn.kice.re.kr/suneung-26/index.html',
-    9:  'https://www.suneung.re.kr/imsi/sumo2609/index.html',
+/** 공식 시험지 출처 링크 */
+const OFFICIAL_LINKS = [
+  {
+    title: 'KICE 수능 기출문제 (공식)',
+    desc: '한국교육과정평가원 공식 기출문제 목록 — PDF 다운로드 가능',
+    url: 'https://www.suneung.re.kr/sub/info.do?m=0405&s=suneung',
+    badge: '공식',
+    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
   },
-  2025: {
-    11: 'https://cdn.kice.re.kr/su-2025-neung/index.html',
-    9:  'https://www.kice.re.kr/imsi/2025mo09su/index.html',
+  {
+    title: 'EBSi 수능 기출문제',
+    desc: 'EBS 수능 강의 사이트 — 과목별 기출문제 열람 (무료 회원가입 필요)',
+    url: 'https://www.ebsi.co.kr/ebs/pot/potn/index.ebs',
+    badge: 'EBS',
+    badgeClass: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
   },
-  2024: {
-    11: 'https://www.suneung.re.kr/imsi/20su24neung/',
+  {
+    title: 'KICE 기출문제 안내 (kice.re.kr)',
+    desc: '한국교육과정평가원 — 수능·모의평가 기출 자료 안내 페이지',
+    url: 'https://www.kice.re.kr/sub/info.do?m=0303&s=kice',
+    badge: '공식',
+    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
   },
-};
-
-const KICE_ARCHIVE = 'https://www.suneung.re.kr/boardCnts/list.do?boardID=1500234&m=0403&s=suneung';
-
-function getKiceViewerUrl(year: number, month: number): string {
-  return KICE_URLS[year]?.[month] ?? KICE_ARCHIVE;
-}
+];
 
 export default function CsatPage() {
   const [activeTab, setActiveTab] = useState<'problems' | 'viewer'>('problems');
@@ -77,7 +81,6 @@ export default function CsatPage() {
   const [showAnswer, setShowAnswer] = useState<Record<string, boolean>>({});
   const [showSimilarAnswer, setShowSimilarAnswer] = useState<Record<string, boolean>>({});
   const [source, setSource] = useState<'database' | 'sample'>('sample');
-  const [iframeError, setIframeError] = useState(false);
 
   const fetchProblems = useCallback(async () => {
     setIsLoading(true);
@@ -103,9 +106,6 @@ export default function CsatPage() {
   }, [selectedYear, selectedMonth, selectedSubject, searchQuery]);
 
   useEffect(() => { fetchProblems(); }, [fetchProblems]);
-
-  // 연도/시험 변경 시 iframe 에러 상태 초기화
-  useEffect(() => { setIframeError(false); }, [selectedYear, selectedMonth]);
 
   const handleGenerateSimilar = async (problem: CsatProblem) => {
     setGeneratingId(problem.id);
@@ -136,8 +136,6 @@ export default function CsatPage() {
   };
 
   const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label || '';
-  const kiceViewerUrl = getKiceViewerUrl(selectedYear, selectedMonth);
-  const isArchiveFallback = kiceViewerUrl === KICE_ARCHIVE;
 
   const selectClass = "px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer";
 
@@ -465,120 +463,72 @@ export default function CsatPage() {
         {/* ── 탭 2: 시험지 보기 ── */}
         {activeTab === 'viewer' && (
           <div className="space-y-4">
-            {/* 시험 정보 헤더 */}
-            <Card className="dark:bg-gray-800 dark:border-gray-700 shadow-sm">
+            {/* 안내 배너 */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
               <CardContent className="pt-4 pb-4">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                      {selectedYear}학년도 {monthLabel}
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                      {isArchiveFallback
-                        ? '해당 연도의 직접 링크가 없습니다. KICE 기출문제 목록으로 이동합니다.'
-                        : '한국교육과정평가원(KICE) 공식 시험지'}
+                <div className="flex gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-amber-800 dark:text-amber-300 mb-1">직접 임베드가 불가능합니다</p>
+                    <p className="text-amber-700 dark:text-amber-400">
+                      KICE 공식 시험지 페이지는 시험 직후 며칠만 임시 운영 후 삭제됩니다.
+                      아래 영구 공식 사이트에서 PDF를 다운로드하거나 열람하세요.
                     </p>
                   </div>
-                  <a
-                    href={kiceViewerUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    {isArchiveFallback ? 'KICE 기출 목록 보기' : '새 탭에서 보기'}
-                  </a>
                 </div>
               </CardContent>
             </Card>
 
-            {/* 아카이브 폴백 안내 */}
-            {isArchiveFallback ? (
-              <Card className="dark:bg-gray-800 dark:border-gray-700 text-center py-12">
-                <CardContent>
-                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-700 dark:text-gray-200 text-lg font-medium mb-2">
-                    직접 임베드 링크가 없는 연도입니다
-                  </p>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-md mx-auto">
-                    2024학년도 이하 6월 모평, 또는 링크가 확인되지 않은 시험의 경우<br />
-                    KICE 공식 기출문제 목록 페이지로 연결됩니다.
-                  </p>
-                  <a
-                    href={KICE_ARCHIVE}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    KICE 기출문제 목록 열기
-                  </a>
-                </CardContent>
-              </Card>
-            ) : !iframeError ? (
-              <div className="relative w-full rounded-xl overflow-hidden border dark:border-gray-700 shadow-sm bg-white dark:bg-gray-800" style={{ height: '820px' }}>
-                <iframe
-                  key={`${selectedYear}-${selectedMonth}`}
-                  src={kiceViewerUrl}
-                  className="w-full h-full border-0"
-                  title={`${selectedYear}년 ${monthLabel} 시험지`}
-                  onError={() => setIframeError(true)}
-                  sandbox="allow-scripts allow-same-origin allow-popups"
-                />
-                {/* iframe 로드 오류 감지 오버레이용 fallback */}
-                <noscript>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800 text-center p-8">
-                    <AlertTriangle className="w-12 h-12 text-yellow-500 mb-4" />
-                    <p className="text-gray-600 dark:text-gray-300 text-lg font-medium mb-2">시험지를 불러올 수 없습니다</p>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-                      브라우저 보안 정책으로 인해 iframe 내 로드가 차단될 수 있습니다.
-                    </p>
-                    <a
-                      href={kiceViewerUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      KICE 공식 사이트에서 열기
-                    </a>
-                  </div>
-                </noscript>
-              </div>
-            ) : (
-              <Card className="dark:bg-gray-800 dark:border-gray-700 text-center py-16">
-                <CardContent>
-                  <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-                  <p className="text-gray-700 dark:text-gray-200 text-lg font-medium mb-2">
-                    시험지를 여기서 바로 불러올 수 없습니다
-                  </p>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-md mx-auto">
-                    브라우저 보안 정책(X-Frame-Options)으로 인해 임베드가 차단될 수 있습니다.<br />
-                    아래 버튼을 클릭하면 KICE 공식 사이트에서 시험지를 볼 수 있습니다.
-                  </p>
-                  <a
-                    href={kiceViewerUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    KICE 공식 사이트에서 시험지 보기
-                  </a>
-                </CardContent>
-              </Card>
-            )}
+            {/* 공식 출처 링크 카드 */}
+            <div className="grid sm:grid-cols-3 gap-4">
+              {OFFICIAL_LINKS.map((link) => (
+                <a
+                  key={link.url}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block group"
+                >
+                  <Card className="h-full dark:bg-gray-800 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all">
+                    <CardContent className="pt-5 pb-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${link.badgeClass}`}>
+                          {link.badge}
+                        </span>
+                        <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-1.5 leading-snug">
+                        {link.title}
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                        {link.desc}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </a>
+              ))}
+            </div>
 
-            {/* 도움말 */}
+            {/* 이용 방법 안내 */}
             <Card className="dark:bg-gray-800 dark:border-gray-700 shadow-sm">
-              <CardContent className="pt-4 pb-4">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">📋 시험지 보기 안내</h3>
-                <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1.5 list-disc list-inside">
-                  <li>한국교육과정평가원(KICE) 공식 온라인 시험지 뷰어를 사용합니다.</li>
-                  <li>브라우저 보안 설정에 따라 임베드 화면이 차단될 수 있습니다. 이 경우 <strong className="text-gray-600 dark:text-gray-300">새 탭에서 보기</strong>를 이용하세요.</li>
-                  <li>시험지는 전 과목이 포함된 전체 시험지입니다.</li>
-                  <li>연도 및 시험 종류는 위 드롭다운에서 변경할 수 있습니다.</li>
-                </ul>
+              <CardContent className="pt-5 pb-5">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4" />
+                  수능 시험지 열람 방법
+                </h3>
+                <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2.5 list-decimal list-inside">
+                  <li>
+                    <strong className="text-gray-700 dark:text-gray-300">KICE 공식 기출문제 페이지</strong> 접속
+                    <span className="block ml-5 text-xs mt-0.5 text-gray-500">suneung.re.kr → 기출문제 메뉴</span>
+                  </li>
+                  <li>
+                    원하는 <strong className="text-gray-700 dark:text-gray-300">연도 및 시험 종류</strong> 선택
+                    <span className="block ml-5 text-xs mt-0.5 text-gray-500">수능(11월), 9월/6월 모의평가</span>
+                  </li>
+                  <li>
+                    과목별 <strong className="text-gray-700 dark:text-gray-300">PDF 파일 다운로드</strong> 또는 온라인 열람
+                  </li>
+                </ol>
               </CardContent>
             </Card>
           </div>
