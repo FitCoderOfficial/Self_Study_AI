@@ -2,20 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Navigation from '@/components/Navigation';
+import MathContent from '@/components/MathContent';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, GraduationCap, Sparkles, Loader2, ChevronDown, ChevronUp, BookOpen, Copy } from 'lucide-react';
-
-declare global {
-  interface Window {
-    MathJax?: {
-      typesetPromise?: () => Promise<void>;
-      startup?: { promise?: Promise<void> };
-    };
-  }
-}
+import { Search, GraduationCap, Sparkles, Loader2, ChevronDown, ChevronUp, BookOpen, Tag } from 'lucide-react';
+import type { SimilarQuestion } from '@/app/api/similar-question/route';
 
 interface CsatProblem {
   id: string;
@@ -54,21 +47,10 @@ export default function CsatPage() {
   const [selectedSubject, setSelectedSubject] = useState('전체');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const [similarProblems, setSimilarProblems] = useState<Record<string, string>>({});
+  const [similarQuestions, setSimilarQuestions] = useState<Record<string, SimilarQuestion>>({});
   const [showAnswer, setShowAnswer] = useState<Record<string, boolean>>({});
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showSimilarAnswer, setShowSimilarAnswer] = useState<Record<string, boolean>>({});
   const [source, setSource] = useState<'database' | 'sample'>('sample');
-
-  const typesetMath = async () => {
-    if (window.MathJax?.typesetPromise) {
-      try {
-        await window.MathJax.startup?.promise;
-        await window.MathJax.typesetPromise();
-      } catch (e) {
-        console.error('MathJax error:', e);
-      }
-    }
-  };
 
   const fetchProblems = useCallback(async () => {
     setIsLoading(true);
@@ -85,7 +67,6 @@ export default function CsatPage() {
       if (data.success) {
         setProblems(data.problems);
         setSource(data.source);
-        setTimeout(typesetMath, 300);
       }
     } catch (error) {
       console.error('수능 문제 로드 오류:', error);
@@ -94,42 +75,34 @@ export default function CsatPage() {
     }
   }, [selectedYear, selectedMonth, selectedSubject, searchQuery]);
 
-  useEffect(() => {
-    fetchProblems();
-  }, [fetchProblems]);
-
-  useEffect(() => {
-    if (expandedId) setTimeout(typesetMath, 200);
-  }, [expandedId, showAnswer]);
+  useEffect(() => { fetchProblems(); }, [fetchProblems]);
 
   const handleGenerateSimilar = async (problem: CsatProblem) => {
     setGeneratingId(problem.id);
+    setSimilarQuestions(prev => { const n = {...prev}; delete n[problem.id]; return n; });
+    setShowSimilarAnswer(prev => { const n = {...prev}; delete n[problem.id]; return n; });
     try {
+      const problemText = [
+        problem.content,
+        problem.choices ? problem.choices.map((c, i) => `${['①','②','③','④','⑤'][i]} ${c}`).join('\n') : '',
+      ].filter(Boolean).join('\n\n');
+
       const response = await fetch('/api/similar-question', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          problemText: `${problem.content}\n\n${problem.choices ? problem.choices.map((c, i) => `${i + 1}) ${c}`).join('\n') : ''}`,
-          subject: problem.subject,
-          csatProblemId: problem.id,
-        }),
+        body: JSON.stringify({ problemText, subject: problem.subject }),
       });
       const data = await response.json();
-      if (data.success) {
-        setSimilarProblems(prev => ({ ...prev, [problem.id]: data.similarProblem }));
-        setTimeout(typesetMath, 300);
+      if (data.success && data.similarQuestion) {
+        setSimilarQuestions(prev => ({ ...prev, [problem.id]: data.similarQuestion }));
+      } else {
+        alert(data.error || '유사 문제 생성 중 오류가 발생했습니다.');
       }
     } catch {
       alert('유사 문제 생성 중 오류가 발생했습니다.');
     } finally {
       setGeneratingId(null);
     }
-  };
-
-  const handleCopy = async (text: string, id: string) => {
-    await navigator.clipboard.writeText(text.replace(/<[^>]*>/g, ''));
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label || '';
@@ -159,10 +132,9 @@ export default function CsatPage() {
         </div>
 
         {/* 필터 */}
-        <Card className="mb-6 shadow-sm">
+        <Card className="mb-6 shadow-sm dark:bg-gray-800 dark:border-gray-700">
           <CardContent className="pt-4 pb-4">
             <div className="flex flex-wrap gap-3">
-              {/* 연도 */}
               <div>
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">연도</p>
                 <div className="flex gap-1.5 flex-wrap">
@@ -181,8 +153,6 @@ export default function CsatPage() {
                   ))}
                 </div>
               </div>
-
-              {/* 시험 */}
               <div>
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">시험</p>
                 <div className="flex gap-1.5">
@@ -201,8 +171,6 @@ export default function CsatPage() {
                   ))}
                 </div>
               </div>
-
-              {/* 과목 */}
               <div>
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">과목</p>
                 <div className="flex gap-1.5 flex-wrap">
@@ -222,8 +190,6 @@ export default function CsatPage() {
                 </div>
               </div>
             </div>
-
-            {/* 검색 */}
             <div className="relative mt-3">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
@@ -252,7 +218,7 @@ export default function CsatPage() {
             <span className="text-gray-600 dark:text-gray-300">문제를 불러오는 중...</span>
           </div>
         ) : problems.length === 0 ? (
-          <Card className="text-center py-16">
+          <Card className="text-center py-16 dark:bg-gray-800 dark:border-gray-700">
             <CardContent>
               <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 dark:text-gray-300 text-lg mb-2">문제를 찾을 수 없습니다</p>
@@ -264,7 +230,9 @@ export default function CsatPage() {
             {problems.map((problem) => {
               const isExpanded = expandedId === problem.id;
               const difficulty = DIFFICULTY_MAP[problem.difficulty] || DIFFICULTY_MAP.medium;
-              const hasSimilar = !!similarProblems[problem.id];
+              const sq = similarQuestions[problem.id];
+              const isAnswerShown = showAnswer[problem.id];
+              const isSimilarAnswerShown = showSimilarAnswer[problem.id];
 
               return (
                 <Card key={problem.id} className="dark:bg-gray-800 dark:border-gray-700 shadow-sm">
@@ -290,10 +258,9 @@ export default function CsatPage() {
                           </span>
                         ))}
                       </div>
-                      <div
-                        className="text-gray-900 dark:text-gray-100 font-medium leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: problem.content.replace(/\n/g, '<br/>') }}
-                      />
+                      <div className="text-gray-900 dark:text-gray-100 font-medium leading-relaxed text-sm">
+                        <MathContent content={problem.content} />
+                      </div>
                     </div>
                     <Button variant="ghost" size="sm" className="flex-shrink-0">
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -310,29 +277,30 @@ export default function CsatPage() {
                             <div
                               key={i}
                               className={`p-3 rounded-lg border text-sm leading-relaxed flex gap-2 ${
-                                showAnswer[problem.id] && problem.answer === i + 1
+                                isAnswerShown && problem.answer === i + 1
                                   ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 font-medium'
                                   : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'
                               }`}
                             >
-                              <span className="font-bold flex-shrink-0">
-                                {['①', '②', '③', '④', '⑤'][i] || `${i + 1}`}
-                              </span>
-                              <span dangerouslySetInnerHTML={{ __html: choice }} />
+                              <span className="font-bold flex-shrink-0">{['①','②','③','④','⑤'][i]}</span>
+                              <MathContent content={choice} />
+                              {isAnswerShown && problem.answer === i + 1 && (
+                                <span className="ml-1 text-green-600 dark:text-green-400 font-bold flex-shrink-0">✓ 정답</span>
+                              )}
                             </div>
                           ))}
                         </div>
                       )}
 
-                      {/* 정답/해설 버튼 */}
+                      {/* 정답/해설 + 유사문제 버튼 */}
                       <div className="flex flex-wrap gap-2">
                         <Button
-                          onClick={() => setShowAnswer(prev => ({ ...prev, [problem.id]: !prev[problem.id] }))}
+                          onClick={() => setShowAnswer(prev => ({ ...prev, [problem.id]: !isAnswerShown }))}
                           variant="outline"
                           size="sm"
                           className="dark:border-gray-600 dark:text-gray-300"
                         >
-                          {showAnswer[problem.id] ? '해설 숨기기' : '정답 & 해설 보기'}
+                          {isAnswerShown ? '해설 숨기기' : '정답 & 해설 보기'}
                         </Button>
                         <Button
                           onClick={() => handleGenerateSimilar(problem)}
@@ -349,46 +317,92 @@ export default function CsatPage() {
                       </div>
 
                       {/* 해설 */}
-                      {showAnswer[problem.id] && (
+                      {isAnswerShown && (
                         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-                          <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-2">풀이 & 해설</h4>
-                          <div
-                            className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ __html: problem.explanation.replace(/\n/g, '<br/>') }}
-                          />
+                          <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-2 text-sm">풀이 & 해설</h4>
+                          <div className="text-sm text-gray-700 dark:text-gray-300">
+                            <MathContent content={problem.explanation} />
+                          </div>
                         </div>
                       )}
 
                       {/* 유사 문제 */}
-                      {hasSimilar && (
-                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
-                              <Sparkles className="w-4 h-4" />
-                              AI 생성 유사 문제
+                      {sq && (
+                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1.5 text-sm">
+                              <Sparkles className="w-4 h-4" />AI 유사 문제
                             </h4>
                             <Button
-                              onClick={() => handleCopy(similarProblems[problem.id], problem.id)}
+                              onClick={() => handleGenerateSimilar(problem)}
+                              disabled={generatingId === problem.id}
                               variant="ghost"
                               size="sm"
                               className="h-7 text-xs dark:text-gray-400"
                             >
-                              <Copy className="w-3 h-3 mr-1" />
-                              {copiedId === problem.id ? '복사됨!' : '복사'}
+                              다시 생성
                             </Button>
                           </div>
-                          <div
-                            className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ __html: similarProblems[problem.id].replace(/\n/g, '<br/>') }}
-                          />
+
+                          {/* 핵심 개념 태그 */}
+                          {sq.keyConcepts.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              <Tag className="w-3 h-3 text-gray-400" />
+                              {sq.keyConcepts.map((c, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                  {c}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* 유사 문제 텍스트 */}
+                          <div className="text-sm text-gray-800 dark:text-gray-200">
+                            <MathContent content={sq.problem} />
+                          </div>
+
+                          {/* 유사 문제 선택지 */}
+                          <div className="space-y-1.5">
+                            {sq.choices.map((choice, i) => (
+                              <div
+                                key={i}
+                                className={`p-2.5 rounded-lg border text-sm flex gap-2 ${
+                                  isSimilarAnswerShown && sq.answer === i + 1
+                                    ? 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-medium'
+                                    : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'
+                                }`}
+                              >
+                                <span className="font-bold flex-shrink-0">{['①','②','③','④','⑤'][i]}</span>
+                                <MathContent content={choice} />
+                                {isSimilarAnswerShown && sq.answer === i + 1 && (
+                                  <span className="ml-1 text-green-600 font-bold flex-shrink-0">✓</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
                           <Button
-                            onClick={() => handleGenerateSimilar(problem)}
+                            onClick={() => setShowSimilarAnswer(prev => ({ ...prev, [problem.id]: !isSimilarAnswerShown }))}
                             variant="outline"
                             size="sm"
-                            className="mt-3 dark:border-gray-600 dark:text-gray-400"
+                            className="dark:border-gray-600 dark:text-gray-300"
                           >
-                            <Sparkles className="w-3 h-3 mr-1.5" />다시 생성
+                            {isSimilarAnswerShown ? '정답 숨기기' : '정답 & 풀이 보기'}
                           </Button>
+
+                          {isSimilarAnswerShown && (
+                            <div className="space-y-2">
+                              <div className="bg-white dark:bg-gray-700/50 rounded-lg p-3 border dark:border-gray-600 text-sm">
+                                <MathContent content={sq.solution} className="text-gray-800 dark:text-gray-200" />
+                              </div>
+                              {sq.wrongAnswerExplanation && (
+                                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800 text-sm">
+                                  <p className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-1">오답 함정</p>
+                                  <MathContent content={sq.wrongAnswerExplanation} className="text-gray-700 dark:text-gray-300" />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

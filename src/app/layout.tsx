@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
+import "katex/dist/katex.min.css";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 
 const notoSansKR = Noto_Sans_KR({
@@ -10,8 +11,8 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "셀프스터디 AI - 청각장애 학생을 위한 AI 시험문제 풀이",
-  description: "AI 기술을 활용하여 청각장애 학생들의 시험공부를 도와주는 웹서비스",
+  title: "수능 AI 도우미",
+  description: "수능 준비생을 위한 AI 기반 학습 도우미",
 };
 
 export default function RootLayout({
@@ -21,33 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <head>
-        <script
-          id="MathJax-script"
-          async
-          src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.MathJax = {
-                tex: {
-                  inlineMath: [['\\\\(', '\\\\)']],
-                  displayMath: [['$$', '$$']],
-                  processEscapes: true,
-                  processEnvironments: true
-                },
-                options: {
-                  skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
-                }
-              };
-            `,
-          }}
-        />
-      </head>
-      <body
-        className={`${notoSansKR.variable} font-sans antialiased`}
-      >
+      <body className={`${notoSansKR.variable} font-sans antialiased`}>
         <ThemeProvider>
           {children}
         </ThemeProvider>

@@ -5,19 +5,15 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import Navigation from '@/components/Navigation';
+import MathContent from '@/components/MathContent';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Clock, Image as ImageIcon, Copy, Loader2, BookOpen, Sparkles, CheckCircle } from 'lucide-react';
-
-declare global {
-  interface Window {
-    MathJax?: {
-      typesetPromise?: () => Promise<void>;
-      startup?: { promise?: Promise<void> };
-    };
-  }
-}
+import {
+  ArrowLeft, Clock, Image as ImageIcon, Copy, Loader2,
+  BookOpen, Sparkles, CheckCircle, Tag, RefreshCw, ChevronDown, ChevronUp
+} from 'lucide-react';
+import type { SimilarQuestion } from '@/app/api/similar-question/route';
 
 interface ProcessedResult {
   id: string;
@@ -29,7 +25,6 @@ interface ProcessedResult {
   explanation: string;
   subject: string;
   timestamp: string;
-  confidence: number;
 }
 
 export default function NewQuestionPage() {
@@ -37,21 +32,14 @@ export default function NewQuestionPage() {
   const router = useRouter();
   const [result, setResult] = useState<ProcessedResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [copied, setCopied] = useState<'problem' | 'explanation' | null>(null);
-  const [activeTab, setActiveTab] = useState<'problem' | 'explanation'>('problem');
-  const [isGeneratingSimilar, setIsGeneratingSimilar] = useState(false);
-  const [similarProblem, setSimilarProblem] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [showImage, setShowImage] = useState(true);
 
-  const typesetMath = async () => {
-    if (window.MathJax?.typesetPromise) {
-      try {
-        await window.MathJax.startup?.promise;
-        await window.MathJax.typesetPromise();
-      } catch (e) {
-        console.error('MathJax error:', e);
-      }
-    }
-  };
+  // 유사 문제 상태
+  const [isGeneratingSimilar, setIsGeneratingSimilar] = useState(false);
+  const [similarQuestion, setSimilarQuestion] = useState<SimilarQuestion | null>(null);
+  const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
+  const [isGraded, setIsGraded] = useState(false);
 
   useEffect(() => {
     const data = localStorage.getItem(`processedResult_${params.id}`);
@@ -59,23 +47,15 @@ export default function NewQuestionPage() {
       setTimeout(() => {
         setResult(JSON.parse(data));
         setIsLoading(false);
-      }, 800);
+      }, 500);
     } else {
       router.push('/solve');
     }
   }, [params.id, router]);
 
-  useEffect(() => {
-    if (result && !isLoading) {
-      const timer = setTimeout(typesetMath, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [result, isLoading, activeTab]);
-
-  const handleCopy = async (text: string, type: 'problem' | 'explanation') => {
-    const clean = text.replace(/<[^>]*>/g, '');
-    await navigator.clipboard.writeText(clean);
-    setCopied(type);
+  const handleCopy = async (text: string, key: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(key);
     setTimeout(() => setCopied(null), 2000);
   };
 
@@ -106,7 +86,9 @@ export default function NewQuestionPage() {
   const handleGenerateSimilar = async () => {
     if (!result) return;
     setIsGeneratingSimilar(true);
-    setSimilarProblem(null);
+    setSimilarQuestion(null);
+    setSelectedChoice(null);
+    setIsGraded(false);
     try {
       const response = await fetch('/api/similar-question', {
         method: 'POST',
@@ -114,13 +96,13 @@ export default function NewQuestionPage() {
         body: JSON.stringify({
           problemText: result.formattedProblem || result.ocrText,
           subject: result.subject,
-          questionId: result.questionId,
         }),
       });
       const data = await response.json();
-      if (data.success) {
-        setSimilarProblem(data.similarProblem);
-        setTimeout(typesetMath, 300);
+      if (data.success && data.similarQuestion) {
+        setSimilarQuestion(data.similarQuestion);
+      } else {
+        alert(data.error || '유사 문제 생성 중 오류가 발생했습니다.');
       }
     } catch {
       alert('유사 문제 생성 중 오류가 발생했습니다.');
@@ -129,16 +111,25 @@ export default function NewQuestionPage() {
     }
   };
 
+  const handleGrade = () => {
+    if (selectedChoice === null) return;
+    setIsGraded(true);
+  };
+
+  const handleRegenerate = () => {
+    setSimilarQuestion(null);
+    setSelectedChoice(null);
+    setIsGraded(false);
+    handleGenerateSimilar();
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
         <Navigation />
         <main className="container mx-auto px-4 py-16 text-center">
-          <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">결과 불러오는 중...</h1>
-          <p className="text-gray-600 dark:text-gray-300">AI가 분석한 결과를 가져오고 있습니다</p>
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-300">결과를 불러오는 중...</p>
         </main>
       </div>
     );
@@ -146,15 +137,11 @@ export default function NewQuestionPage() {
 
   if (!result) return null;
 
-  const displayText = activeTab === 'problem'
-    ? (result.formattedProblem || result.ocrText)
-    : result.explanation;
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
       <Navigation />
 
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-6">
           <Link href="/solve">
@@ -163,162 +150,275 @@ export default function NewQuestionPage() {
               돌아가기
             </Button>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
               {result.subject}
             </Badge>
-            <Badge variant="secondary" className="flex items-center gap-1 dark:bg-gray-700">
+            <Badge variant="secondary" className="flex items-center gap-1 dark:bg-gray-700 dark:text-gray-300">
               <Clock className="w-3 h-3" />
               {new Date(result.timestamp).toLocaleString('ko-KR')}
             </Badge>
           </div>
         </div>
 
+        {/* 본문 2단 레이아웃 */}
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* 원본 이미지 */}
-          <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100 text-lg">
-                <ImageIcon className="w-5 h-5" />
-                원본 이미지
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Image
-                src={result.originalImage}
-                alt="원본 이미지"
-                width={600}
-                height={400}
-                className="w-full h-auto rounded-lg border dark:border-gray-700 shadow-sm"
-                unoptimized
-              />
-            </CardContent>
-          </Card>
 
-          {/* AI 분석 결과 */}
-          <Card className="dark:bg-gray-800 dark:border-gray-700">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100 text-lg">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                AI 분석 결과
-              </CardTitle>
-              {/* 탭 */}
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => setActiveTab('problem')}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    activeTab === 'problem'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-                  }`}
-                >
-                  문제 텍스트
-                </button>
-                <button
-                  onClick={() => setActiveTab('explanation')}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    activeTab === 'explanation'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-                  }`}
-                >
-                  AI 해설
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-white dark:bg-gray-700 p-5 rounded-lg border dark:border-gray-600 min-h-[300px] text-gray-900 dark:text-gray-100 leading-relaxed overflow-auto">
-                {displayText ? (
-                  <div
-                    className="whitespace-pre-wrap text-base"
-                    dangerouslySetInnerHTML={{ __html: displayText.replace(/\n/g, '<br/>') }}
+          {/* ─── 왼쪽 패널: 이미지 + 문제 텍스트 ─── */}
+          <div className="space-y-4">
+            {/* 원본 이미지 */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base dark:text-gray-100">
+                    <ImageIcon className="w-4 h-4" />
+                    원본 이미지
+                  </CardTitle>
+                  <button
+                    onClick={() => setShowImage(!showImage)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    {showImage ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                </div>
+              </CardHeader>
+              {showImage && (
+                <CardContent className="pt-0">
+                  <Image
+                    src={result.originalImage}
+                    alt="원본 문제 이미지"
+                    width={600}
+                    height={400}
+                    className="w-full h-auto rounded-lg border dark:border-gray-700"
+                    unoptimized
                   />
-                ) : (
-                  <p className="text-gray-400 dark:text-gray-500 italic">내용이 없습니다.</p>
-                )}
-              </div>
-              <Button
-                onClick={() => handleCopy(displayText, activeTab)}
-                variant="outline"
-                size="sm"
-                className="mt-3 dark:border-gray-600 dark:text-gray-300"
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                {copied === activeTab ? '복사됨!' : '텍스트 복사'}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+                </CardContent>
+              )}
+            </Card>
 
-        {/* 유사 문제 생성 */}
-        <Card className="mt-6 dark:bg-gray-800 dark:border-gray-700">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-gray-100">
-              <Sparkles className="w-5 h-5 text-purple-600" />
-              유사 문제 생성
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!similarProblem ? (
-              <div className="text-center py-6">
-                <p className="text-gray-600 dark:text-gray-400 mb-4">
-                  이 문제와 유사한 새로운 문제를 AI가 생성합니다
-                </p>
-                <Button
-                  onClick={handleGenerateSimilar}
-                  disabled={isGeneratingSimilar}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-8"
-                >
-                  {isGeneratingSimilar ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />유사 문제 생성 중...</>
-                  ) : (
-                    <><Sparkles className="w-4 h-4 mr-2" />유사 문제 생성하기</>
-                  )}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div
-                  className="bg-purple-50 dark:bg-purple-900/20 p-5 rounded-lg border border-purple-200 dark:border-purple-700 leading-relaxed text-gray-900 dark:text-gray-100 whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ __html: similarProblem.replace(/\n/g, '<br/>') }}
-                />
-                <div className="flex gap-2">
+            {/* 문제 텍스트 */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base dark:text-gray-100">
+                    <BookOpen className="w-4 h-4 text-blue-600" />
+                    문제
+                  </CardTitle>
                   <Button
-                    onClick={() => handleCopy(similarProblem, 'problem')}
-                    variant="outline"
+                    onClick={() => handleCopy(result.formattedProblem || result.ocrText, 'problem')}
+                    variant="ghost"
                     size="sm"
-                    className="dark:border-gray-600 dark:text-gray-300"
+                    className="h-7 px-2 text-xs dark:text-gray-400"
                   >
-                    <Copy className="w-4 h-4 mr-2" />복사
-                  </Button>
-                  <Button
-                    onClick={() => { setSimilarProblem(null); handleGenerateSimilar(); }}
-                    variant="outline"
-                    size="sm"
-                    className="dark:border-gray-600 dark:text-gray-300"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />다시 생성
+                    <Copy className="w-3 h-3 mr-1" />
+                    {copied === 'problem' ? '복사됨!' : '복사'}
                   </Button>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-100 dark:border-blue-900 text-gray-900 dark:text-gray-100 text-sm leading-relaxed">
+                  <MathContent content={result.formattedProblem || result.ocrText} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* 액션 버튼 */}
+          {/* ─── 오른쪽 패널: AI 해설 + 유사 문제 ─── */}
+          <div className="space-y-4">
+            {/* AI 해설 */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base dark:text-gray-100">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    AI 해설
+                  </CardTitle>
+                  <Button
+                    onClick={() => handleCopy(result.explanation, 'explanation')}
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs dark:text-gray-400"
+                  >
+                    <Copy className="w-3 h-3 mr-1" />
+                    {copied === 'explanation' ? '복사됨!' : '복사'}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-green-50 dark:bg-green-950/20 rounded-lg p-4 border border-green-100 dark:border-green-900 text-gray-900 dark:text-gray-100 text-sm leading-relaxed max-h-80 overflow-y-auto">
+                  <MathContent content={result.explanation} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 유사 문제 */}
+            <Card className="dark:bg-gray-800 dark:border-gray-700">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base dark:text-gray-100">
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  유사 문제 풀기
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!similarQuestion && !isGeneratingSimilar && (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                      같은 개념의 유사 문제를 생성하여 풀어보세요
+                    </p>
+                    <Button
+                      onClick={handleGenerateSimilar}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      유사 문제 생성
+                    </Button>
+                  </div>
+                )}
+
+                {isGeneratingSimilar && (
+                  <div className="flex flex-col items-center py-8 gap-3">
+                    <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">유사 문제 생성 중...</p>
+                  </div>
+                )}
+
+                {similarQuestion && (
+                  <div className="space-y-4">
+                    {/* 핵심 개념 태그 */}
+                    {similarQuestion.keyConcepts.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-gray-400 mt-0.5" />
+                        {similarQuestion.keyConcepts.map((concept, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                            {concept}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 문제 텍스트 */}
+                    <div className="bg-purple-50 dark:bg-purple-950/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800 text-sm text-gray-900 dark:text-gray-100">
+                      <MathContent content={similarQuestion.problem} />
+                    </div>
+
+                    {/* 선택지 */}
+                    <div className="space-y-2">
+                      {similarQuestion.choices.map((choice, i) => {
+                        const choiceNum = i + 1;
+                        const isSelected = selectedChoice === choiceNum;
+                        const isCorrect = choiceNum === similarQuestion.answer;
+
+                        let btnClass = 'w-full text-left px-4 py-2.5 rounded-lg border text-sm transition-all ';
+                        if (!isGraded) {
+                          btnClass += isSelected
+                            ? 'border-purple-500 bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-200 font-medium'
+                            : 'border-gray-200 dark:border-gray-600 hover:border-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 dark:text-gray-200';
+                        } else {
+                          if (isCorrect) {
+                            btnClass += 'border-green-500 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 font-medium';
+                          } else if (isSelected && !isCorrect) {
+                            btnClass += 'border-red-400 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300';
+                          } else {
+                            btnClass += 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400';
+                          }
+                        }
+
+                        return (
+                          <button
+                            key={i}
+                            className={btnClass}
+                            onClick={() => !isGraded && setSelectedChoice(choiceNum)}
+                            disabled={isGraded}
+                          >
+                            <MathContent content={choice} className="inline" />
+                            {isGraded && isCorrect && (
+                              <span className="ml-2 text-green-600 dark:text-green-400 font-bold">✓ 정답</span>
+                            )}
+                            {isGraded && isSelected && !isCorrect && (
+                              <span className="ml-2 text-red-500 dark:text-red-400">✗ 오답</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* 채점 버튼 */}
+                    {!isGraded ? (
+                      <Button
+                        onClick={handleGrade}
+                        disabled={selectedChoice === null}
+                        className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-40"
+                      >
+                        채점하기
+                      </Button>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* 정오답 피드백 */}
+                        <div className={`rounded-lg p-3 border text-sm ${
+                          selectedChoice === similarQuestion.answer
+                            ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-800 dark:text-green-300'
+                            : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-800 dark:text-red-300'
+                        }`}>
+                          {selectedChoice === similarQuestion.answer
+                            ? '정답입니다!'
+                            : `오답입니다. 정답은 ${similarQuestion.answer}번입니다.`}
+                        </div>
+
+                        {/* 풀이 보기 */}
+                        <details className="group">
+                          <summary className="cursor-pointer text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 select-none">
+                            풀이 보기 ▾
+                          </summary>
+                          <div className="mt-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 border dark:border-gray-600 text-sm text-gray-800 dark:text-gray-200">
+                            <MathContent content={similarQuestion.solution} />
+                          </div>
+                        </details>
+
+                        {/* 오답 함정 */}
+                        {similarQuestion.wrongAnswerExplanation && (
+                          <details className="group">
+                            <summary className="cursor-pointer text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-orange-600 dark:hover:text-orange-400 select-none">
+                              오답 함정 설명 ▾
+                            </summary>
+                            <div className="mt-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800 text-sm text-gray-800 dark:text-gray-200">
+                              <MathContent content={similarQuestion.wrongAnswerExplanation} />
+                            </div>
+                          </details>
+                        )}
+
+                        {/* 재생성 */}
+                        <Button
+                          onClick={handleRegenerate}
+                          variant="outline"
+                          size="sm"
+                          className="w-full dark:border-gray-600 dark:text-gray-300"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 mr-2" />
+                          다른 문제 생성
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* 하단 액션 버튼 */}
         <div className="grid md:grid-cols-3 gap-4 mt-6">
-          <Button onClick={handleSaveToArchive} className="h-12 bg-blue-600 hover:bg-blue-700 text-white">
+          <Button onClick={handleSaveToArchive} className="h-11 bg-blue-600 hover:bg-blue-700 text-white">
             <BookOpen className="w-4 h-4 mr-2" />
             히스토리에 저장
           </Button>
           <Link href="/solve">
-            <Button variant="outline" className="w-full h-12 dark:border-gray-600 dark:text-gray-300">
+            <Button variant="outline" className="w-full h-11 dark:border-gray-600 dark:text-gray-300">
               새로운 문제 풀기
             </Button>
           </Link>
           <Link href="/archive">
-            <Button variant="outline" className="w-full h-12 dark:border-gray-600 dark:text-gray-300">
-              학습 히스토리 보기
+            <Button variant="outline" className="w-full h-11 dark:border-gray-600 dark:text-gray-300">
+              학습 히스토리
             </Button>
           </Link>
         </div>

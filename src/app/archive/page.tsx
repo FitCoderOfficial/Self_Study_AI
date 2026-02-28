@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import Navigation from "@/components/Navigation";
 import AccessibilityFeatures from "@/components/AccessibilityFeatures";
+import MathContent from "@/components/MathContent";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,17 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import {
   BookOpen, CheckCircle, XCircle, Filter, Sparkles, Loader2,
-  Search, ChevronDown, ChevronUp, Trash2, Copy, Eye
+  Search, ChevronDown, ChevronUp, Trash2, Eye, Tag
 } from "lucide-react";
-
-declare global {
-  interface Window {
-    MathJax?: {
-      typesetPromise?: () => Promise<void>;
-      startup?: { promise?: Promise<void> };
-    };
-  }
-}
+import type { SimilarQuestion } from "@/app/api/similar-question/route";
 
 interface ArchiveItem {
   id: string;
@@ -46,17 +39,9 @@ export default function ArchivePage() {
   const [filterCorrect, setFilterCorrect] = useState<'all' | 'correct' | 'incorrect'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const [similarProblems, setSimilarProblems] = useState<Record<string, string>>({});
+  const [similarQuestions, setSimilarQuestions] = useState<Record<string, SimilarQuestion>>({});
+  const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({});
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  const typesetMath = async () => {
-    if (window.MathJax?.typesetPromise) {
-      try {
-        await window.MathJax.startup?.promise;
-        await window.MathJax.typesetPromise();
-      } catch {}
-    }
-  };
 
   const loadItems = useCallback(async () => {
     setIsLoading(true);
@@ -66,7 +51,6 @@ export default function ArchivePage() {
       setIsLoggedIn(!!user);
 
       if (user) {
-        // Supabase에서 로드
         const { data, error } = await supabase
           .from('questions')
           .select('*')
@@ -75,7 +59,7 @@ export default function ArchivePage() {
           .limit(100);
 
         if (!error && data) {
-          const dbItems: ArchiveItem[] = data.map(q => ({
+          setItems(data.map(q => ({
             id: q.id,
             questionId: q.id,
             subject: q.subject || '기타',
@@ -85,15 +69,12 @@ export default function ArchivePage() {
             isCorrect: q.is_correct,
             difficulty: q.difficulty || 'medium',
             tags: q.tags || [],
-          }));
-          setItems(dbItems);
+          })));
           setIsLoading(false);
-          setTimeout(typesetMath, 300);
           return;
         }
       }
 
-      // localStorage 폴백
       const local = JSON.parse(localStorage.getItem('archivedQuestions') || '[]');
       setItems(local);
     } catch (err) {
@@ -102,12 +83,10 @@ export default function ArchivePage() {
       setItems(local);
     } finally {
       setIsLoading(false);
-      setTimeout(typesetMath, 300);
     }
   }, []);
 
   useEffect(() => { loadItems(); }, [loadItems]);
-  useEffect(() => { if (expandedId) setTimeout(typesetMath, 200); }, [expandedId]);
 
   const filtered = items.filter(item => {
     if (selectedSubject !== '전체' && item.subject !== selectedSubject) return false;
@@ -126,7 +105,6 @@ export default function ArchivePage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('삭제하시겠습니까?')) return;
-
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -134,11 +112,8 @@ export default function ArchivePage() {
         await supabase.from('questions').delete().eq('id', id).eq('user_id', user.id);
       }
     } catch {}
-
-    // localStorage에서도 삭제
     const local = JSON.parse(localStorage.getItem('archivedQuestions') || '[]');
-    const updated = local.filter((item: ArchiveItem) => item.id !== id);
-    localStorage.setItem('archivedQuestions', JSON.stringify(updated));
+    localStorage.setItem('archivedQuestions', JSON.stringify(local.filter((i: ArchiveItem) => i.id !== id)));
     setItems(prev => prev.filter(item => item.id !== id));
   };
 
@@ -148,16 +123,13 @@ export default function ArchivePage() {
       const response = await fetch('/api/similar-question', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          problemText: item.question,
-          subject: item.subject,
-          questionId: item.questionId,
-        }),
+        body: JSON.stringify({ problemText: item.question, subject: item.subject }),
       });
       const data = await response.json();
-      if (data.success) {
-        setSimilarProblems(prev => ({ ...prev, [item.id]: data.similarProblem }));
-        setTimeout(typesetMath, 300);
+      if (data.success && data.similarQuestion) {
+        setSimilarQuestions(prev => ({ ...prev, [item.id]: data.similarQuestion }));
+      } else {
+        alert(data.error || '유사 문제 생성 중 오류가 발생했습니다.');
       }
     } catch {
       alert('유사 문제 생성 중 오류가 발생했습니다.');
@@ -272,9 +244,7 @@ export default function ArchivePage() {
               </p>
               {items.length === 0 && (
                 <Link href="/solve">
-                  <Button className="mt-3 bg-blue-600 hover:bg-blue-700 text-white">
-                    첫 번째 문제 풀기
-                  </Button>
+                  <Button className="mt-3 bg-blue-600 hover:bg-blue-700 text-white">첫 번째 문제 풀기</Button>
                 </Link>
               )}
             </CardContent>
@@ -284,11 +254,11 @@ export default function ArchivePage() {
             <p className="text-sm text-gray-500 dark:text-gray-400">{filtered.length}개의 문제</p>
             {filtered.map(item => {
               const isExpanded = expandedId === item.id;
-              const hasSimilar = !!similarProblems[item.id];
+              const sq = similarQuestions[item.id];
+              const isAnswerRevealed = revealedAnswers[item.id];
 
               return (
                 <Card key={item.id} className="dark:bg-gray-800 dark:border-gray-700 shadow-sm">
-                  {/* 헤더 */}
                   <div className="p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
@@ -303,19 +273,13 @@ export default function ArchivePage() {
                             </span>
                           )}
                           {item.isCorrect !== null && (
-                            item.isCorrect ? (
-                              <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                                <CheckCircle className="w-3 h-3" />정답
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
-                                <XCircle className="w-3 h-3" />오답
-                              </span>
-                            )
+                            item.isCorrect
+                              ? <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400"><CheckCircle className="w-3 h-3" />정답</span>
+                              : <span className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400"><XCircle className="w-3 h-3" />오답</span>
                           )}
                         </div>
-                        <p className="text-gray-900 dark:text-gray-100 leading-relaxed line-clamp-2">
-                          {item.question?.replace(/<[^>]*>/g, '').substring(0, 150)}...
+                        <p className="text-gray-900 dark:text-gray-100 leading-relaxed line-clamp-2 text-sm">
+                          {item.question?.replace(/\$.*?\$/g, '[수식]').substring(0, 150)}...
                         </p>
                         {item.tags.length > 0 && (
                           <div className="flex gap-1 mt-2 flex-wrap">
@@ -349,31 +313,28 @@ export default function ArchivePage() {
                     </div>
                   </div>
 
-                  {/* 상세 내용 */}
                   {isExpanded && (
                     <div className="px-5 pb-5 border-t dark:border-gray-700 pt-4 space-y-4">
-                      {/* 문제 전체 */}
+                      {/* 문제 */}
                       <div>
                         <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">문제</h4>
-                        <div
-                          className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap text-sm"
-                          dangerouslySetInnerHTML={{ __html: item.question?.replace(/\n/g, '<br/>') || '' }}
-                        />
+                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 text-sm">
+                          <MathContent content={item.question} className="text-gray-900 dark:text-gray-100" />
+                        </div>
                       </div>
 
                       {/* AI 해설 */}
                       {item.explanation && (
                         <div>
                           <h4 className="text-sm font-semibold text-green-700 dark:text-green-400 mb-2">AI 해설</h4>
-                          <div
-                            className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4 text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap text-sm"
-                            dangerouslySetInnerHTML={{ __html: item.explanation?.replace(/\n/g, '<br/>') || '' }}
-                          />
+                          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4 text-sm">
+                            <MathContent content={item.explanation} className="text-gray-900 dark:text-gray-100" />
+                          </div>
                         </div>
                       )}
 
-                      {/* 유사 문제 생성 */}
-                      <div className="flex gap-2">
+                      {/* 유사 문제 생성 버튼 */}
+                      {!sq && (
                         <Button
                           onClick={() => handleGenerateSimilar(item)}
                           disabled={generatingId === item.id}
@@ -386,30 +347,74 @@ export default function ArchivePage() {
                             <><Sparkles className="w-3 h-3 mr-1.5" />유사 문제 생성</>
                           )}
                         </Button>
-                      </div>
+                      )}
 
                       {/* 생성된 유사 문제 */}
-                      {hasSimilar && (
-                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
+                      {sq && (
+                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center justify-between">
                             <h4 className="text-sm font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
-                              <Sparkles className="w-4 h-4" />AI 생성 유사 문제
+                              <Sparkles className="w-4 h-4" />AI 유사 문제
                             </h4>
                             <Button
-                              onClick={async () => {
-                                await navigator.clipboard.writeText(similarProblems[item.id]);
-                              }}
+                              onClick={() => handleGenerateSimilar(item)}
+                              disabled={generatingId === item.id}
                               variant="ghost"
                               size="sm"
                               className="h-7 text-xs dark:text-gray-400"
                             >
-                              <Copy className="w-3 h-3 mr-1" />복사
+                              {generatingId === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : '다시 생성'}
                             </Button>
                           </div>
-                          <div
-                            className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ __html: similarProblems[item.id].replace(/\n/g, '<br/>') }}
-                          />
+
+                          {/* 핵심 개념 */}
+                          {sq.keyConcepts.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              <Tag className="w-3 h-3 text-gray-400" />
+                              {sq.keyConcepts.map((c, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                  {c}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="text-sm text-gray-800 dark:text-gray-200">
+                            <MathContent content={sq.problem} />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            {sq.choices.map((choice, i) => (
+                              <div
+                                key={i}
+                                className={`p-2.5 rounded-lg border text-sm transition-colors ${
+                                  isAnswerRevealed && sq.answer === i + 1
+                                    ? 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 font-medium'
+                                    : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'
+                                }`}
+                              >
+                                <MathContent content={choice} />
+                                {isAnswerRevealed && sq.answer === i + 1 && (
+                                  <span className="ml-1 text-green-600 font-bold">✓ 정답</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <Button
+                            onClick={() => setRevealedAnswers(prev => ({ ...prev, [item.id]: !isAnswerRevealed }))}
+                            variant="outline"
+                            size="sm"
+                            className="dark:border-gray-600 dark:text-gray-300"
+                          >
+                            {isAnswerRevealed ? '정답 숨기기' : '정답 보기'}
+                          </Button>
+
+                          {isAnswerRevealed && sq.solution && (
+                            <div className="bg-white dark:bg-gray-700/50 rounded-lg p-3 border dark:border-gray-600 text-sm">
+                              <MathContent content={sq.solution} className="text-gray-800 dark:text-gray-200" />
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
