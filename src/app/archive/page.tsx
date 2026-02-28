@@ -94,11 +94,10 @@ export default function ArchivePage() {
   const [selectedChoices, setSelectedChoices] = useState<Record<string, number[]>>({});
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // 태그 / 배점 인라인 편집
+  // 태그 인라인 편집 / 과목+배점 다이얼로그 편집
   const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState('');
-  const [editingScoreId, setEditingScoreId] = useState<string | null>(null);
-  const [scoreInput, setScoreInput] = useState('');
+  const [editDialog, setEditDialog] = useState<{ id: string; subject: string; score: string } | null>(null);
 
   const loadItems = useCallback(async () => {
     setIsLoading(true);
@@ -231,8 +230,9 @@ export default function ArchivePage() {
       if (user) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const dbPatch: Record<string, any> = {};
-        if ('tags' in patch)  dbPatch.tags  = patch.tags;
-        if ('score' in patch) dbPatch.score = patch.score;
+        if ('tags' in patch)    dbPatch.tags    = patch.tags;
+        if ('score' in patch)   dbPatch.score   = patch.score;
+        if ('subject' in patch) dbPatch.subject = patch.subject;
         if (Object.keys(dbPatch).length)
           await supabase.from('questions').update(dbPatch).eq('id', itemId).eq('user_id', user.id);
       } else {
@@ -241,6 +241,16 @@ export default function ArchivePage() {
           JSON.stringify(local.map(i => i.id === itemId ? { ...i, ...patch } : i)));
       }
     } catch { /* ignore */ }
+  };
+
+  const handleSaveEdit = () => {
+    if (!editDialog) return;
+    const v = editDialog.score.trim() ? parseInt(editDialog.score) : null;
+    persistItem(editDialog.id, {
+      subject: editDialog.subject,
+      score: (v !== null && !isNaN(v) && v > 0) ? v : null,
+    });
+    setEditDialog(null);
   };
 
   const addTag = (itemId: string, currentTags: string[]) => {
@@ -252,12 +262,6 @@ export default function ArchivePage() {
 
   const removeTag = (itemId: string, currentTags: string[], tag: string) => {
     persistItem(itemId, { tags: currentTags.filter(t => t !== tag) });
-  };
-
-  const confirmScore = (itemId: string) => {
-    const v = scoreInput.trim() ? parseInt(scoreInput) : null;
-    persistItem(itemId, { score: (v !== null && !isNaN(v) && v > 0) ? v : null });
-    setEditingScoreId(null);
   };
 
   const totalCount = items.length;
@@ -402,38 +406,11 @@ export default function ArchivePage() {
                           {item.problemNumber}번
                         </Badge>
                       )}
-                      {/* 배점 (항상 표시, 클릭으로 인라인 편집) */}
-                      {editingScoreId === item.id ? (
-                        <form
-                          onSubmit={e => { e.preventDefault(); confirmScore(item.id); }}
-                          className="flex items-center gap-1"
-                        >
-                          <input
-                            type="number" min="1" max="9"
-                            value={scoreInput}
-                            onChange={e => setScoreInput(e.target.value)}
-                            autoFocus
-                            onKeyDown={e => e.key === 'Escape' && setEditingScoreId(null)}
-                            className="w-14 px-1.5 py-0.5 text-xs border border-amber-400 rounded-lg focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                            placeholder="배점"
-                          />
-                          <button type="submit" className="text-green-500 hover:text-green-600"><Check className="w-3.5 h-3.5" /></button>
-                          <button type="button" onClick={() => setEditingScoreId(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
-                        </form>
-                      ) : (
-                        <button
-                          onClick={() => { setScoreInput(item.score?.toString() ?? ''); setEditingScoreId(item.id); }}
-                          title="배점 편집"
-                        >
-                          <Badge className={`text-xs font-semibold cursor-pointer hover:opacity-75 transition-opacity flex items-center gap-1 ${
-                            item.score !== null
-                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                              : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 border border-dashed border-gray-300 dark:border-gray-600'
-                          }`}>
-                            {item.score !== null ? `${item.score}점` : '배점?'}
-                            <Pencil className="w-2.5 h-2.5" />
-                          </Badge>
-                        </button>
+                      {/* 배점 */}
+                      {item.score !== null && (
+                        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs font-semibold">
+                          {item.score}점
+                        </Badge>
                       )}
                       {/* 영역 */}
                       {item.problemArea && (
@@ -547,7 +524,7 @@ export default function ArchivePage() {
                       </div>
                     )}
 
-                    {/* 펼치기/접기 + 삭제 */}
+                    {/* 펼치기/접기 + 수정 + 삭제 */}
                     <div className="flex items-center gap-2 mt-3">
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : item.id)}
@@ -558,12 +535,21 @@ export default function ArchivePage() {
                           : <><ChevronDown className="w-4 h-4" />자세히 보기</>
                         }
                       </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="flex items-center p-1.5 text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-auto"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1 ml-auto">
+                        <button
+                          onClick={() => setEditDialog({ id: item.id, subject: item.subject, score: item.score?.toString() ?? '' })}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors text-xs font-medium"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          수정
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="flex items-center p-1.5 text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -758,6 +744,60 @@ export default function ArchivePage() {
           </div>
         )}
       </main>
+
+      {/* ── 과목/배점 수정 다이얼로그 ── */}
+      {editDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-2xl w-full max-w-sm mx-4 border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-5">문제 정보 수정</h3>
+
+            <div className="space-y-4">
+              {/* 과목 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">과목</label>
+                <select
+                  value={editDialog.subject}
+                  onChange={e => setEditDialog(prev => prev ? { ...prev, subject: e.target.value } : null)}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {['수학', '영어', '국어', '사회', '과학', '한국사', '직업탐구', '제2외국어', '기타'].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 배점 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">배점 (점)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="9"
+                  value={editDialog.score}
+                  onChange={e => setEditDialog(prev => prev ? { ...prev, score: e.target.value } : null)}
+                  placeholder="예: 2, 3, 4"
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleSaveEdit}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors text-sm"
+              >
+                저장
+              </button>
+              <button
+                onClick={() => setEditDialog(null)}
+                className="flex-1 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-xl transition-colors text-sm"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AccessibilityFeatures />
     </div>

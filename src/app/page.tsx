@@ -210,25 +210,87 @@ export default function Home() {
           <div className="max-w-4xl mx-auto px-4 text-center">
             <span className="block text-sm font-semibold text-blue-500 dark:text-blue-400 tracking-wider mb-2 uppercase">Subjects</span>
             <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-3">수능 전 과목 지원</h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-10 text-base">국어부터 제2외국어까지 모든 수능 과목을 분석할 수 있습니다</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-12 text-base">국어부터 제2외국어까지 모든 수능 과목을 분석할 수 있습니다</p>
 
-            <div className="flex flex-wrap justify-center gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
-                { label: "📖 국어", sub: "화법과작문 · 언어와매체" },
-                { label: "📐 수학", sub: "확률과통계 · 미적분 · 기하" },
-                { label: "🌍 영어", sub: "" },
-                { label: "🏛 한국사", sub: "" },
-                { label: "🗺 사회탐구", sub: "9개 선택 과목" },
-                { label: "🔬 과학탐구", sub: "8개 선택 과목" },
-                { label: "🏭 직업탐구", sub: "" },
-                { label: "🌐 제2외국어/한문", sub: "9개 선택 과목" },
-              ].map(({ label, sub }) => (
+                {
+                  emoji: "📖",
+                  label: "국어",
+                  sub: "화법과작문 · 언어와매체",
+                  desc: "비문학, 문학, 화법·작문·언어·매체 전 범위 분석",
+                  color: "border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20",
+                  badge: "text-orange-600 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/40",
+                },
+                {
+                  emoji: "📐",
+                  label: "수학",
+                  sub: "확률과통계 · 미적분 · 기하",
+                  desc: "수식·행렬·그래프 등 LaTeX 수식 완벽 렌더링",
+                  color: "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20",
+                  badge: "text-blue-600 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40",
+                },
+                {
+                  emoji: "🌍",
+                  label: "영어",
+                  sub: "독해 · 듣기 · 어법",
+                  desc: "지문 분석, 빈칸 추론, 글의 순서 등 전 유형 해설",
+                  color: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20",
+                  badge: "text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900/40",
+                },
+                {
+                  emoji: "🏛",
+                  label: "한국사",
+                  sub: "전 범위",
+                  desc: "시대별 사건·인물·제도 분석 및 해설",
+                  color: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20",
+                  badge: "text-red-600 dark:text-red-300 bg-red-100 dark:bg-red-900/40",
+                },
+                {
+                  emoji: "🗺",
+                  label: "사회탐구",
+                  sub: "생활과윤리 · 사회문화 · 경제 등 9과목",
+                  desc: "9개 선택 과목 전체 지원, 개념·도표 분석",
+                  color: "border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20",
+                  badge: "text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/40",
+                },
+                {
+                  emoji: "🔬",
+                  label: "과학탐구",
+                  sub: "물리·화학·생명과학·지구과학 Ⅰ·Ⅱ",
+                  desc: "8개 선택 과목, 수식·실험 데이터 완벽 해석",
+                  color: "border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20",
+                  badge: "text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40",
+                },
+                {
+                  emoji: "🏭",
+                  label: "직업탐구",
+                  sub: "농업기초기술 · 공업일반 등 4과목",
+                  desc: "직업계고 학생을 위한 직업탐구 전 과목 지원",
+                  color: "border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20",
+                  badge: "text-teal-600 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/40",
+                },
+                {
+                  emoji: "🌐",
+                  label: "제2외국어/한문",
+                  sub: "독일어·프랑스어·중국어·일본어 등 9과목",
+                  desc: "9개 외국어 및 한문 선택 과목 전체 분석 지원",
+                  color: "border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20",
+                  badge: "text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/40",
+                },
+              ].map(({ emoji, label, sub, desc, color, badge }) => (
                 <div
                   key={label}
-                  className="bg-blue-50 dark:bg-gray-800 border border-blue-100 dark:border-gray-700 rounded-xl px-5 py-3 text-left min-w-[140px]"
+                  className={`flex items-start gap-4 p-5 rounded-2xl border ${color} text-left`}
                 >
-                  <p className="font-bold text-gray-900 dark:text-white text-sm">{label}</p>
-                  {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{sub}</p>}
+                  <div className="text-3xl shrink-0 mt-0.5">{emoji}</div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-gray-900 dark:text-white text-base">{label}</span>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge}`}>{sub}</span>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{desc}</p>
+                  </div>
                 </div>
               ))}
             </div>

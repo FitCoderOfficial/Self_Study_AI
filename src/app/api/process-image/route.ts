@@ -192,6 +192,9 @@ export async function POST(request: NextRequest) {
             ocr_text: result.formattedProblem,
             ai_explanation: result.explanation,
             subject: result.detectedSubject,
+            score: result.score,
+            problem_number: result.problemNumber,
+            problem_area: result.problemArea,
           })
           .select('id')
           .single();
