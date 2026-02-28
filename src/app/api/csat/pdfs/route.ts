@@ -8,18 +8,35 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = await createClient();
-    let query = supabase
-      .from('csat_pdfs')
-      .select('year, month, subject, pdf_url, answer_url')
-      .order('year', { ascending: false })
-      .order('month', { ascending: false })
-      .order('subject');
 
-    if (year) query = query.eq('year', parseInt(year));
-    if (month) query = query.eq('month', parseInt(month));
+    const buildQuery = (select: string) => {
+      let q = supabase
+        .from('csat_pdfs')
+        .select(select)
+        .order('year', { ascending: false })
+        .order('month', { ascending: false })
+        .order('subject');
+      if (year) q = q.eq('year', parseInt(year));
+      if (month) q = q.eq('month', parseInt(month));
+      return q;
+    };
 
-    const { data, error } = await query;
-    if (error) throw error;
+    // zip_files 컬럼 포함 시도, 없으면 기본 컬럼만
+    let { data, error } = await buildQuery(
+      'year, month, subject, pdf_url, answer_url, zip_files, answer_zip_files'
+    );
+
+    if (error) {
+      // zip_files 컬럼이 아직 없는 경우 fallback
+      const fallback = await buildQuery('year, month, subject, pdf_url, answer_url');
+      if (fallback.error) throw fallback.error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data = (fallback.data || []).map((r: any) => ({
+        ...r,
+        zip_files: null,
+        answer_zip_files: null,
+      })) as typeof data;
+    }
 
     return NextResponse.json({ success: true, pdfs: data || [] });
   } catch (error) {

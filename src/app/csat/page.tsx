@@ -1,46 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Navigation from '@/components/Navigation';
-import MathContent from '@/components/MathContent';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import PDFViewer from '@/components/PDFViewer';
 import {
-  Search, GraduationCap, Sparkles, Loader2, ChevronDown, ChevronUp,
-  BookOpen, Tag, Download, FileText, AlertTriangle, RefreshCw,
+  GraduationCap, Loader2, Download, FileText, AlertTriangle, RefreshCw,
 } from 'lucide-react';
-import type { SimilarQuestion } from '@/app/api/similar-question/route';
-
-interface CsatProblem {
-  id: string;
-  year: number;
-  month: number;
-  subject: string;
-  sub_subject: string | null;
-  number: number;
-  content: string;
-  choices: string[] | null;
-  answer: number | null;
-  explanation: string;
-  difficulty: string;
-  tags: string[];
-}
-
-const SUBJECTS = ['전체', '수학', '영어', '국어', '사회', '과학'];
-// 학년도 기준 (2026학년도 = 2025년 11월 시행)
-const YEARS = [2026, 2025, 2024, 2023, 2022, 2021];
-const MONTHS: { label: string; value: number }[] = [
-  { label: '수능 (11월)', value: 11 },
-  { label: '9월 모의평가', value: 9 },
-  { label: '6월 모의평가', value: 6 },
-];
-const DIFFICULTY_MAP: Record<string, { label: string; color: string }> = {
-  easy: { label: '쉬움', color: 'bg-green-100 text-green-700' },
-  medium: { label: '보통', color: 'bg-yellow-100 text-yellow-700' },
-  hard: { label: '어려움', color: 'bg-red-100 text-red-700' },
-};
 
 interface CsatPdf {
   year: number;
@@ -48,10 +14,23 @@ interface CsatPdf {
   subject: string;
   pdf_url: string | null;
   answer_url: string | null;
+  zip_files: string[] | null;
+  answer_zip_files: string[] | null;
 }
 
-/** 공식 시험지 출처 링크 (DB 데이터 없을 때 fallback) */
-const FALLBACK_LINK = 'https://www.suneung.re.kr/sub/info.do?m=0405&s=suneung';
+const YEARS = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017];
+const MONTHS: { label: string; value: number }[] = [
+  { label: '수능 (11월)', value: 11 },
+  { label: '9월 모의평가', value: 9 },
+  { label: '6월 모의평가', value: 6 },
+];
+
+// 수능 시험 영역 구조 (표시 그룹)
+const SUBJECT_GROUPS = [
+  { label: '공통 영역', subjects: ['국어', '수학', '영어', '한국사'] },
+  { label: '탐구 영역', subjects: ['사회탐구', '과학탐구', '직업탐구'] },
+  { label: '제2외국어/한문', subjects: ['제2외국어'] },
+] as const;
 
 const SUBJECT_ORDER = ['국어', '수학', '영어', '한국사', '사회탐구', '과학탐구', '직업탐구', '제2외국어'];
 function sortSubjects(pdfs: CsatPdf[]) {
@@ -62,50 +41,95 @@ function sortSubjects(pdfs: CsatPdf[]) {
   });
 }
 
+// 선택과목 파일명 → 표시명 매핑
+const SUBJECT_DISPLAY_MAP: [RegExp | string, string][] = [
+  // 국어 선택과목 (2022 개정 수능)
+  ['화법과작문', '화법과작문'],
+  ['언어와매체', '언어와매체'],
+  // 수학 선택과목 (2022 개정 수능)
+  ['확률과통계', '확률과통계'],
+  ['미적분', '미적분'],
+  ['기하', '기하'],
+  // 사회탐구
+  ['생활과윤리', '생활과윤리'],
+  ['윤리와사상', '윤리와사상'],
+  ['한국지리', '한국지리'],
+  ['세계지리', '세계지리'],
+  ['동아시아사', '동아시아사'],
+  ['세계사', '세계사'],
+  ['상업경제', '상업경제'],  // '경제' 보다 먼저
+  ['정치와법', '정치와법'],
+  ['사회문화', '사회문화'],
+  ['경제', '경제'],
+  // 과학탐구 (Ⅱ 먼저 — Ⅰ과 중복 방지)
+  [/물리(학)?[Ⅱ2]/, '물리학Ⅱ'],
+  [/물리(학)?[Ⅰ1]/, '물리학Ⅰ'],
+  [/화학[Ⅱ2]/, '화학Ⅱ'],
+  [/화학[Ⅰ1]/, '화학Ⅰ'],
+  [/생명과학[Ⅱ2]/, '생명과학Ⅱ'],
+  [/생명과학[Ⅰ1]/, '생명과학Ⅰ'],
+  [/지구과학[Ⅱ2]/, '지구과학Ⅱ'],
+  [/지구과학[Ⅰ1]/, '지구과학Ⅰ'],
+  // 직업탐구
+  ['농업기초기술', '농업기초기술'],
+  ['공업일반', '공업일반'],
+  [/수산.?해운/, '수산·해운산업기초'],
+  ['인간발달', '인간발달'],
+  // 제2외국어/한문
+  ['독일어', '독일어Ⅰ'],
+  ['프랑스어', '프랑스어Ⅰ'],
+  ['스페인어', '스페인어Ⅰ'],
+  ['중국어', '중국어Ⅰ'],
+  ['일본어', '일본어Ⅰ'],
+  ['러시아어', '러시아어Ⅰ'],
+  ['아랍어', '아랍어Ⅰ'],
+  ['베트남어', '베트남어Ⅰ'],
+  [/한문/, '한문Ⅰ'],
+];
+
+function getDisplayName(filename: string): string {
+  const base = filename
+    .replace(/\.pdf$/i, '')
+    .replace(/[_\s]*(문제지|정답표|정답|답안)\s*$/i, '');
+
+  for (const [pattern, name] of SUBJECT_DISPLAY_MAP) {
+    if (typeof pattern === 'string' ? base.includes(pattern) : pattern.test(base)) {
+      return name;
+    }
+  }
+
+  const cleaned = base
+    .replace(/^\d{4}[_\s]*(학년도)?[_\s]*/g, '')
+    .replace(/^(사회탐구|과학탐구|직업탐구|제2외국어|한문|사탐|과탐|직탐)[_\s]*/g, '')
+    .replace(/^[_\s]+|[_\s]+$/g, '');
+  return cleaned || base;
+}
+
+function getSubOptionLabel(subject: string): string {
+  if (subject === '국어') return '선택과목';
+  if (subject === '수학') return '선택과목';
+  if (subject === '사회탐구') return '사회탐구 선택과목';
+  if (subject === '과학탐구') return '과학탐구 선택과목';
+  if (subject === '직업탐구') return '직업탐구 선택과목';
+  if (subject === '제2외국어') return '제2외국어/한문 선택과목';
+  return '선택과목';
+}
+
 export default function CsatPage() {
-  const [activeTab, setActiveTab] = useState<'problems' | 'viewer'>('problems');
-  const [problems, setProblems] = useState<CsatProblem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedMonth, setSelectedMonth] = useState(11);
-  const [selectedSubject, setSelectedSubject] = useState('전체');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const [similarQuestions, setSimilarQuestions] = useState<Record<string, SimilarQuestion>>({});
-  const [showAnswer, setShowAnswer] = useState<Record<string, boolean>>({});
-  const [showSimilarAnswer, setShowSimilarAnswer] = useState<Record<string, boolean>>({});
-  const [source, setSource] = useState<'database' | 'sample'>('sample');
 
-  // 시험지 PDF 상태
   const [pdfs, setPdfs] = useState<CsatPdf[]>([]);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [selectedPdfSubject, setSelectedPdfSubject] = useState<string | null>(null);
+  const [pdfType, setPdfType] = useState<'problem' | 'answer'>('problem');
+  const [selectedZipFile, setSelectedZipFile] = useState<string | null>(null);
 
-  const fetchProblems = useCallback(async () => {
-    setIsLoading(true);
-    setExpandedId(null);
-    try {
-      const params = new URLSearchParams({
-        year: selectedYear.toString(),
-        month: selectedMonth.toString(),
-        subject: selectedSubject,
-        ...(searchQuery && { search: searchQuery }),
-      });
-      const response = await fetch(`/api/csat?${params}`);
-      const data = await response.json();
-      if (data.success) {
-        setProblems(data.problems);
-        setSource(data.source);
-      }
-    } catch (error) {
-      console.error('수능 문제 로드 오류:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedYear, selectedMonth, selectedSubject, searchQuery]);
-
-  useEffect(() => { fetchProblems(); }, [fetchProblems]);
+  // ZIP 파일 목록 동적 조회 (DB zip_files 없을 때 폴백)
+  const [zipFetchedFiles, setZipFetchedFiles] = useState<Record<string, string[]>>({});
+  const [isFetchingZipList, setIsFetchingZipList] = useState(false);
+  const fetchedZipUrls = useRef<Set<string>>(new Set());
 
   const fetchPdfs = useCallback(async () => {
     setIsPdfLoading(true);
@@ -129,42 +153,76 @@ export default function CsatPage() {
     }
   }, [selectedYear, selectedMonth]);
 
-  // 시험지 탭 활성화 시 PDF 로드
+  useEffect(() => { fetchPdfs(); }, [fetchPdfs]);
+
   useEffect(() => {
-    if (activeTab === 'viewer') fetchPdfs();
-  }, [activeTab, fetchPdfs]);
-
-  const handleGenerateSimilar = async (problem: CsatProblem) => {
-    setGeneratingId(problem.id);
-    setSimilarQuestions(prev => { const n = {...prev}; delete n[problem.id]; return n; });
-    setShowSimilarAnswer(prev => { const n = {...prev}; delete n[problem.id]; return n; });
-    try {
-      const problemText = [
-        problem.content,
-        problem.choices ? problem.choices.map((c, i) => `${['①','②','③','④','⑤'][i]} ${c}`).join('\n') : '',
-      ].filter(Boolean).join('\n\n');
-
-      const response = await fetch('/api/similar-question', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ problemText, subject: problem.subject }),
-      });
-      const data = await response.json();
-      if (data.success && data.similarQuestion) {
-        setSimilarQuestions(prev => ({ ...prev, [problem.id]: data.similarQuestion }));
-      } else {
-        alert(data.error || '유사 문제 생성 중 오류가 발생했습니다.');
-      }
-    } catch {
-      alert('유사 문제 생성 중 오류가 발생했습니다.');
-    } finally {
-      setGeneratingId(null);
+    if (pdfs.length > 0) {
+      setSelectedPdfSubject(sortSubjects(pdfs)[0].subject);
+      setPdfType('problem');
+      setSelectedZipFile(null);
+    } else {
+      setSelectedPdfSubject(null);
     }
-  };
+  }, [pdfs]);
 
-  const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label || '';
+  useEffect(() => {
+    setSelectedZipFile(null);
+  }, [selectedPdfSubject, pdfType]);
+
+  // ── 파생 값 ───────────────────────────────────────────────────
+  const sorted = useMemo(() => sortSubjects(pdfs), [pdfs]);
+
+  const current = useMemo(
+    () => (sorted.length > 0 ? sorted.find(p => p.subject === selectedPdfSubject) ?? sorted[0] : null),
+    [sorted, selectedPdfSubject]
+  );
+
+  const viewUrl    = pdfType === 'problem' ? (current?.pdf_url    ?? null) : (current?.answer_url       ?? null);
+  const dbZipFiles = pdfType === 'problem' ? (current?.zip_files  ?? null) : (current?.answer_zip_files ?? null);
+  const zipFiles   = dbZipFiles ?? (viewUrl ? (zipFetchedFiles[viewUrl] ?? null) : null);
+  const isZip      = Array.isArray(zipFiles) && zipFiles.length > 0;
+  // zipFiles가 빈 배열 = 프로브 완료, ZIP 아님(PDF 직접 스트리밍 가능)
+  const isKnownPdf = Array.isArray(zipFiles) && zipFiles.length === 0 && dbZipFiles === null;
+
+  const activeZipFile = isZip
+    ? (selectedZipFile && zipFiles!.includes(selectedZipFile) ? selectedZipFile : zipFiles![0])
+    : null;
+
+  const proxyUrl = viewUrl
+    ? isZip && activeZipFile
+      ? `/api/csat/pdf-proxy?url=${encodeURIComponent(viewUrl)}&file=${encodeURIComponent(activeZipFile)}`
+      : (dbZipFiles !== null && !isZip) || isKnownPdf
+        ? `/api/csat/pdf-proxy?url=${encodeURIComponent(viewUrl)}` // PDF 직접 스트리밍
+        : null  // 아직 로딩 중 or ZIP 선택 대기
+    : null;
+
+  // viewUrl이 바뀌면 프로브 실행 — URL 끝이 .zip이 아니어도 항상 실행
+  // 프록시가 매직 바이트로 ZIP/PDF를 구분해서 { files: [...] } 반환
+  useEffect(() => {
+    if (!viewUrl) return;
+    if (dbZipFiles !== null) return; // DB에 데이터 있으면 프로브 불필요
+    if (fetchedZipUrls.current.has(viewUrl)) return; // 이미 프로브 완료
+
+    fetchedZipUrls.current.add(viewUrl);
+    setIsFetchingZipList(true);
+
+    fetch(`/api/csat/pdf-proxy?url=${encodeURIComponent(viewUrl)}&list=true`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.files)) {
+          setZipFetchedFiles(prev => ({ ...prev, [viewUrl]: data.files }));
+        }
+      })
+      .catch(() => {
+        setZipFetchedFiles(prev => ({ ...prev, [viewUrl]: [] }));
+      })
+      .finally(() => setIsFetchingZipList(false));
+  }, [viewUrl, dbZipFiles]);
 
   const selectClass = "px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer";
+
+  // 현재 선택 과목에 선택과목(zip)이 있는지
+  const hasSubOptions = isZip;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -175,443 +233,234 @@ export default function CsatPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-medium mb-4">
             <GraduationCap className="w-4 h-4 mr-2" />
-            수능 기출 문제
+            수능 기출 시험지
           </div>
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-3">
-            수능 기출문제 풀기
+            수능 기출 시험지 보기
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300">
-            역대 수능 기출문제를 풀고 <span className="font-semibold text-purple-600 dark:text-purple-400">AI로 유사 문제를 생성</span>하세요
+            역대 수능 · 모의평가 기출 시험지를 영역별로 바로 확인하세요
           </p>
-          {source === 'sample' && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              * 현재 샘플 데이터를 표시 중입니다. Supabase 설정 후 실제 수능 문제를 등록하세요.
-            </p>
-          )}
         </div>
 
-        {/* 필터 (드롭다운) */}
-        <Card className="mb-5 shadow-sm dark:bg-gray-800 dark:border-gray-700">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex flex-wrap items-end gap-4">
-              {/* 연도 드롭다운 */}
+        {/* 필터 카드 */}
+        <Card className="mb-6 shadow-sm dark:bg-gray-800 dark:border-gray-700">
+          <CardContent className="pt-5 pb-5">
+            {/* 연도 + 시험 선택 */}
+            <div className="flex flex-wrap items-center gap-4 mb-5">
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">연도</label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className={selectClass}
-                >
-                  {YEARS.map(y => (
-                    <option key={y} value={y}>{y}년</option>
-                  ))}
+                <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className={selectClass}>
+                  {YEARS.map(y => <option key={y} value={y}>{y}년</option>)}
                 </select>
               </div>
-
-              {/* 시험 종류 드롭다운 */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">시험</label>
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                  className={selectClass}
-                >
-                  {MONTHS.map(m => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
+                <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))} className={selectClass}>
+                  {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
               </div>
+            </div>
 
-              {/* 과목 버튼 */}
-              <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">과목</p>
-                <div className="flex gap-1.5 flex-wrap">
-                  {SUBJECTS.map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setSelectedSubject(s)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        selectedSubject === s
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {s}
-                    </button>
+            {/* 수능 영역 구조별 과목 버튼 */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">영역 선택</p>
+              {isPdfLoading ? (
+                <div className="flex gap-1.5">
+                  {['국어', '수학', '영어', '한국사'].map(s => (
+                    <div key={s} className="h-8 w-16 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
                   ))}
                 </div>
-              </div>
+              ) : sorted.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {SUBJECT_GROUPS.map(group => {
+                    const groupPdfs = sorted.filter(p => (group.subjects as readonly string[]).includes(p.subject));
+                    if (groupPdfs.length === 0) return null;
+                    return (
+                      <div key={group.label} className="flex flex-wrap items-start gap-3">
+                        {/* 그룹 레이블 */}
+                        <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide pt-1.5 w-[78px] shrink-0">
+                          {group.label}
+                        </span>
+                        {/* 과목 버튼들 */}
+                        <div className="flex gap-1.5 flex-wrap">
+                          {groupPdfs.map(pdf => {
+                            const isActive = selectedPdfSubject === pdf.subject;
+                            const zipCount = pdf.zip_files?.length ?? 0;
+                            return (
+                              <button
+                                key={pdf.subject}
+                                onClick={() => { setSelectedPdfSubject(pdf.subject); setPdfType('problem'); }}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                  isActive
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                }`}
+                              >
+                                {pdf.subject}
+                                {zipCount > 0 && (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
+                                    isActive
+                                      ? 'bg-white/20 text-white'
+                                      : 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400'
+                                  }`}>
+                                    {zipCount}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="text-xs text-gray-400 dark:text-gray-500">연도·시험을 선택하면 영역이 표시됩니다</span>
+              )}
             </div>
 
-            {/* 검색 */}
-            <div className="relative mt-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="키워드로 문제 검색..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 dark:bg-gray-700 dark:border-gray-600"
-                onKeyDown={(e) => e.key === 'Enter' && fetchProblems()}
-              />
-            </div>
+            {/* ── 선택과목 태그 (필터 카드 내부) ── */}
+            {!isPdfLoading && sorted.length > 0 && (isFetchingZipList || hasSubOptions) && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                {isFetchingZipList ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                    선택과목 목록 불러오는 중...
+                  </div>
+                ) : isZip && (
+                  <>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2.5">
+                      {current ? getSubOptionLabel(current.subject) : '선택과목'}
+                      <span className="font-normal text-gray-400 dark:text-gray-500 ml-1.5">({zipFiles!.length}개)</span>
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {zipFiles!.map(f => (
+                        <button
+                          key={f}
+                          onClick={() => setSelectedZipFile(f)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            activeZipFile === f
+                              ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-200 dark:ring-blue-800'
+                              : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400'
+                          }`}
+                        >
+                          {getDisplayName(f)}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* 탭 */}
-        <div className="flex gap-1 mb-5 border-b dark:border-gray-700">
-          <button
-            onClick={() => setActiveTab('problems')}
-            className={`px-5 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px ${
-              activeTab === 'problems'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            <BookOpen className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-            문제 목록
-          </button>
-          <button
-            onClick={() => setActiveTab('viewer')}
-            className={`px-5 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px ${
-              activeTab === 'viewer'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-            }`}
-          >
-            <FileText className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-            시험지 보기
-          </button>
-        </div>
-
-        {/* ── 탭 1: 문제 목록 ── */}
-        {activeTab === 'problems' && (
-          <>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {selectedYear}년 {monthLabel} {selectedSubject !== '전체' ? selectedSubject : ''} 기출문제
-                <span className="ml-2 text-blue-600 dark:text-blue-400">({problems.length}문항)</span>
-              </h2>
-            </div>
-
-            {isLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mr-3" />
-                <span className="text-gray-600 dark:text-gray-300">문제를 불러오는 중...</span>
-              </div>
-            ) : problems.length === 0 ? (
-              <Card className="text-center py-16 dark:bg-gray-800 dark:border-gray-700">
-                <CardContent>
-                  <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-300 text-lg mb-2">문제를 찾을 수 없습니다</p>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">다른 연도나 과목을 선택해보세요</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {problems.map((problem) => {
-                  const isExpanded = expandedId === problem.id;
-                  const difficulty = DIFFICULTY_MAP[problem.difficulty] || DIFFICULTY_MAP.medium;
-                  const sq = similarQuestions[problem.id];
-                  const isAnswerShown = showAnswer[problem.id];
-                  const isSimilarAnswerShown = showSimilarAnswer[problem.id];
-
-                  return (
-                    <Card key={problem.id} className="dark:bg-gray-800 dark:border-gray-700 shadow-sm">
-                      <div
-                        className="flex items-start justify-between p-5 cursor-pointer"
-                        onClick={() => setExpandedId(isExpanded ? null : problem.id)}
-                      >
-                        <div className="flex-1 pr-4">
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-xs">
-                              {problem.number}번
-                            </Badge>
-                            <Badge variant="outline" className="text-xs dark:border-gray-600 dark:text-gray-300">
-                              {problem.subject}{problem.sub_subject ? ` - ${problem.sub_subject}` : ''}
-                            </Badge>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${difficulty.color}`}>
-                              {difficulty.label}
-                            </span>
-                            {problem.tags.map(tag => (
-                              <span key={tag} className="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full text-xs">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                          <div className="text-gray-900 dark:text-gray-100 font-medium leading-relaxed text-sm">
-                            <MathContent content={problem.content} />
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="sm" className="flex-shrink-0">
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </Button>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="px-5 pb-5 border-t dark:border-gray-700 pt-4 space-y-4">
-                          {problem.choices && (
-                            <div className="space-y-2">
-                              {problem.choices.map((choice, i) => (
-                                <div
-                                  key={i}
-                                  className={`p-3 rounded-lg border text-sm leading-relaxed flex gap-2 ${
-                                    isAnswerShown && problem.answer === i + 1
-                                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 font-medium'
-                                      : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'
-                                  }`}
-                                >
-                                  <span className="font-bold flex-shrink-0">{['①','②','③','④','⑤'][i]}</span>
-                                  <MathContent content={choice} />
-                                  {isAnswerShown && problem.answer === i + 1 && (
-                                    <span className="ml-1 text-green-600 dark:text-green-400 font-bold flex-shrink-0">✓ 정답</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              onClick={() => setShowAnswer(prev => ({ ...prev, [problem.id]: !isAnswerShown }))}
-                              variant="outline"
-                              size="sm"
-                              className="dark:border-gray-600 dark:text-gray-300"
-                            >
-                              {isAnswerShown ? '해설 숨기기' : '정답 & 해설 보기'}
-                            </Button>
-                            <Button
-                              onClick={() => handleGenerateSimilar(problem)}
-                              disabled={generatingId === problem.id}
-                              size="sm"
-                              className="bg-purple-600 hover:bg-purple-700 text-white"
-                            >
-                              {generatingId === problem.id ? (
-                                <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />생성 중...</>
-                              ) : (
-                                <><Sparkles className="w-3 h-3 mr-1.5" />유사 문제 생성</>
-                              )}
-                            </Button>
-                          </div>
-
-                          {isAnswerShown && (
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-                              <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-2 text-sm">풀이 & 해설</h4>
-                              <div className="text-sm text-gray-700 dark:text-gray-300">
-                                <MathContent content={problem.explanation} />
-                              </div>
-                            </div>
-                          )}
-
-                          {sq && (
-                            <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4 space-y-3">
-                              <div className="flex items-center justify-between">
-                                <h4 className="font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1.5 text-sm">
-                                  <Sparkles className="w-4 h-4" />AI 유사 문제
-                                </h4>
-                                <Button
-                                  onClick={() => handleGenerateSimilar(problem)}
-                                  disabled={generatingId === problem.id}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 text-xs dark:text-gray-400"
-                                >
-                                  다시 생성
-                                </Button>
-                              </div>
-
-                              {sq.keyConcepts.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 items-center">
-                                  <Tag className="w-3 h-3 text-gray-400" />
-                                  {sq.keyConcepts.map((c, i) => (
-                                    <Badge key={i} variant="secondary" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                                      {c}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-
-                              <div className="text-sm text-gray-800 dark:text-gray-200">
-                                <MathContent content={sq.problem} />
-                              </div>
-
-                              <div className="space-y-1.5">
-                                {sq.choices.map((choice, i) => (
-                                  <div
-                                    key={i}
-                                    className={`p-2.5 rounded-lg border text-sm flex gap-2 ${
-                                      isSimilarAnswerShown && sq.answer === i + 1
-                                        ? 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-medium'
-                                        : 'border-gray-200 dark:border-gray-600 dark:text-gray-300'
-                                    }`}
-                                  >
-                                    <span className="font-bold flex-shrink-0">{['①','②','③','④','⑤'][i]}</span>
-                                    <MathContent content={choice} />
-                                    {isSimilarAnswerShown && sq.answer === i + 1 && (
-                                      <span className="ml-1 text-green-600 font-bold flex-shrink-0">✓</span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-
-                              <Button
-                                onClick={() => setShowSimilarAnswer(prev => ({ ...prev, [problem.id]: !isSimilarAnswerShown }))}
-                                variant="outline"
-                                size="sm"
-                                className="dark:border-gray-600 dark:text-gray-300"
-                              >
-                                {isSimilarAnswerShown ? '정답 숨기기' : '정답 & 풀이 보기'}
-                              </Button>
-
-                              {isSimilarAnswerShown && (
-                                <div className="space-y-2">
-                                  <div className="bg-white dark:bg-gray-700/50 rounded-lg p-3 border dark:border-gray-600 text-sm">
-                                    <MathContent content={sq.solution} className="text-gray-800 dark:text-gray-200" />
-                                  </div>
-                                  {sq.wrongAnswerExplanation && (
-                                    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-200 dark:border-orange-800 text-sm">
-                                      <p className="text-xs font-semibold text-orange-700 dark:text-orange-400 mb-1">오답 함정</p>
-                                      <MathContent content={sq.wrongAnswerExplanation} className="text-gray-700 dark:text-gray-300" />
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </>
+        {/* 로딩 */}
+        {isPdfLoading && (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin mr-3" />
+            <span className="text-gray-600 dark:text-gray-300">시험지 목록 불러오는 중...</span>
+          </div>
         )}
 
-        {/* ── 탭 2: 시험지 보기 ── */}
-        {activeTab === 'viewer' && (
-          <div className="space-y-4">
-            {/* 헤더 */}
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {selectedYear}학년도 {monthLabel} 시험지
-              </h2>
-              <Button
+        {/* 에러 */}
+        {!isPdfLoading && pdfError && (
+          <Card className="dark:bg-gray-800 dark:border-gray-700 text-center py-10">
+            <CardContent>
+              <AlertTriangle className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
+              <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">데이터를 불러올 수 없습니다</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">{pdfError}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 데이터 없을 때 */}
+        {!isPdfLoading && !pdfError && pdfs.length === 0 && (
+          <Card className="dark:bg-gray-800 dark:border-gray-700 text-center py-16">
+            <CardContent>
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-700 dark:text-gray-200 text-lg font-medium mb-2">크롤링 데이터가 없습니다</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mb-5">
+                아래 명령어로 suneung.re.kr의 기출 PDF 링크를 수집하세요.
+              </p>
+              <div className="bg-gray-900 dark:bg-gray-950 text-green-400 font-mono text-sm px-5 py-3 rounded-lg inline-block">
+                npm run crawl
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* PDF 뷰어 */}
+        {!isPdfLoading && !pdfError && pdfs.length > 0 && (
+          <div className="space-y-3">
+            {/* 문제지 / 정답표 토글 + 새로고침 + 다운로드 */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1 gap-0.5">
+                <button
+                  onClick={() => setPdfType('problem')}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    pdfType === 'problem'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  문제지
+                </button>
+                {current?.answer_url && (
+                  <button
+                    onClick={() => setPdfType('answer')}
+                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                      pdfType === 'answer'
+                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    정답표
+                  </button>
+                )}
+              </div>
+
+              <button
                 onClick={fetchPdfs}
                 disabled={isPdfLoading}
-                variant="outline"
-                size="sm"
-                className="dark:border-gray-600 dark:text-gray-300"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
-                {isPdfLoading
-                  ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />불러오는 중</>
-                  : <><RefreshCw className="w-3.5 h-3.5 mr-1.5" />새로고침</>
-                }
-              </Button>
+                <RefreshCw className="w-3.5 h-3.5" />
+                새로고침
+              </button>
+
+              {viewUrl && (
+                <a
+                  href={viewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  다운로드
+                </a>
+              )}
             </div>
 
-            {/* 로딩 */}
-            {isPdfLoading && (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin mr-3" />
-                <span className="text-gray-600 dark:text-gray-300">시험지 목록 불러오는 중...</span>
-              </div>
-            )}
-
-            {/* 에러 */}
-            {!isPdfLoading && pdfError && (
+            {/* PDF 뷰어 (PDF.js 캔버스 렌더링 + 드래그 선택) */}
+            {proxyUrl ? (
+              <PDFViewer
+                key={proxyUrl}
+                src={proxyUrl}
+                defaultSubject={selectedPdfSubject ?? '기타'}
+              />
+            ) : !isFetchingZipList && (
               <Card className="dark:bg-gray-800 dark:border-gray-700 text-center py-10">
                 <CardContent>
-                  <AlertTriangle className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
-                  <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">데이터를 불러올 수 없습니다</p>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">{pdfError}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                    Supabase에 csat_pdfs 테이블이 없거나 크롤링을 아직 실행하지 않았습니다.
+                  <FileText className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    {zipFiles !== null && zipFiles.length === 0
+                      ? 'ZIP 파일에서 PDF를 찾을 수 없습니다'
+                      : `${pdfType === 'problem' ? '문제지' : '정답표'} PDF가 없습니다`}
                   </p>
                 </CardContent>
               </Card>
-            )}
-
-            {/* DB에 데이터 없을 때 */}
-            {!isPdfLoading && !pdfError && pdfs.length === 0 && (
-              <Card className="dark:bg-gray-800 dark:border-gray-700 text-center py-12">
-                <CardContent>
-                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-700 dark:text-gray-200 text-lg font-medium mb-2">
-                    크롤링 데이터가 없습니다
-                  </p>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mb-5 max-w-sm mx-auto">
-                    아래 명령어를 터미널에서 실행하면 suneung.re.kr에서<br />
-                    기출문제 PDF 링크를 자동으로 수집합니다.
-                  </p>
-                  <div className="bg-gray-900 dark:bg-gray-950 text-green-400 font-mono text-sm px-5 py-3 rounded-lg inline-block mb-5">
-                    node scripts/crawl-csat.mjs
-                  </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
-                    수집 후 이 페이지를 새로고침하면 과목별 PDF 다운로드 버튼이 표시됩니다.
-                  </p>
-                  <a
-                    href={FALLBACK_LINK}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    <Download className="w-4 h-4" />
-                    KICE 공식 사이트에서 직접 보기
-                  </a>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* PDF 목록 (DB 데이터) */}
-            {!isPdfLoading && !pdfError && pdfs.length > 0 && (
-              <>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  총 {pdfs.length}개 과목 · suneung.re.kr 공식 PDF
-                </p>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {sortSubjects(pdfs).map((pdf) => (
-                    <Card key={`${pdf.year}-${pdf.month}-${pdf.subject}`}
-                      className="dark:bg-gray-800 dark:border-gray-700 shadow-sm">
-                      <CardContent className="pt-4 pb-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                            {pdf.subject}
-                          </h3>
-                          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 text-xs">
-                            {pdf.year}학년도
-                          </Badge>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          {pdf.pdf_url ? (
-                            <a
-                              href={pdf.pdf_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
-                            >
-                              <Download className="w-3.5 h-3.5 flex-shrink-0" />
-                              문제지 PDF 다운로드
-                            </a>
-                          ) : (
-                            <span className="text-xs text-gray-400 dark:text-gray-500">문제지 없음</span>
-                          )}
-                          {pdf.answer_url && (
-                            <a
-                              href={pdf.answer_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-lg transition-colors"
-                            >
-                              <Download className="w-3.5 h-3.5 flex-shrink-0" />
-                              정답표 PDF 다운로드
-                            </a>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </>
             )}
           </div>
         )}

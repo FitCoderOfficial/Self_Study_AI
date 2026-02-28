@@ -151,3 +151,7 @@ CREATE POLICY "Anyone can insert csat_pdfs" ON public.csat_pdfs FOR INSERT WITH 
 CREATE POLICY "Anyone can update csat_pdfs" ON public.csat_pdfs FOR UPDATE USING (true);
 
 CREATE INDEX IF NOT EXISTS idx_csat_pdfs_year ON public.csat_pdfs(year, month, subject);
+
+-- ZIP 파일 내부 PDF 목록 컬럼 추가 (선택과목 지원)
+ALTER TABLE public.csat_pdfs ADD COLUMN IF NOT EXISTS zip_files JSONB;
+ALTER TABLE public.csat_pdfs ADD COLUMN IF NOT EXISTS answer_zip_files JSONB;

@@ -11,23 +11,76 @@ interface MathContentProps {
   className?: string;
 }
 
+// ── 세그먼트 단위 bare LaTeX 래핑 패턴 ─────────────────────────
+// 이미 $...$안에 있는 텍스트에는 적용되지 않음
+const BARE_LATEX_PATTERNS: RegExp[] = [
+  // 분수 (중첩 중괄호 2단계 지원)
+  /\\frac\{(?:[^{}]|\{[^{}]*\})*\}\{(?:[^{}]|\{[^{}]*\})*\}/g,
+  // 제곱근 (선택적 n제곱근 []  포함)
+  /\\sqrt(?:\[[^\]]*\])?\{(?:[^{}]|\{[^{}]*\})*\}/g,
+  // 벡터·데코레이터
+  /\\(?:vec|hat|bar|tilde|overrightarrow|overleftarrow|overline|underline|widehat|widetilde)\{(?:[^{}]|\{[^{}]*\})*\}/g,
+  // 이항계수
+  /\\(?:binom|dbinom|tbinom)\{(?:[^{}]|\{[^{}]*\})*\}\{(?:[^{}]|\{[^{}]*\})*\}/g,
+  // 합·적분·곱 (첨자 포함)
+  /\\(?:sum|int|oint|iint|iiint|prod|coprod|bigcup|bigcap)(?:_\{[^}]*\}|\^[^{}\s])?(?:\^\{[^}]*\}|_[^{}\s])?/g,
+  // 극한
+  /\\lim(?:_\{[^}]*\})?/g,
+  // 그리스 소문자
+  /\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega)(?![a-zA-Z{])/g,
+  // 그리스 대문자
+  /\\(?:Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega)(?![a-zA-Z{])/g,
+  // 관계·연산자
+  /\\(?:leq|le|geq|ge|neq|ne|approx|equiv|sim|simeq|cong|subset|supset|subseteq|supseteq|in|notin|ni|cup|cap|wedge|vee|oplus|otimes|cdot|times|div|pm|mp|perp|parallel|mid|nmid|propto)(?![a-zA-Z{])/g,
+  // 화살표
+  /\\(?:rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|Leftrightarrow|to|gets|mapsto|hookrightarrow|uparrow|downarrow|Uparrow|Downarrow)(?![a-zA-Z{])/g,
+  // 기타 기호
+  /\\(?:cdots|ldots|vdots|ddots|infty|partial|nabla|forall|exists|nexists|emptyset|varnothing|angle|triangle|square|diamond|star|circ|bullet|dagger|langle|rangle)(?![a-zA-Z{])/g,
+  // 수학 함수
+  /\\(?:log|ln|sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan|sinh|cosh|tanh|max|min|sup|inf|det|exp|Pr|gcd|lcm|deg)(?![a-zA-Z{])/g,
+  // 서체 변환
+  /\\(?:mathbb|mathbf|mathit|mathcal|mathsf|mathrm|mathtt)\{[^}]+\}/g,
+  // \text{...} 단독 노출
+  /\\text\{[^}]+\}/g,
+];
+
+// $...$ 또는 $$...$$ 바깥 텍스트 세그먼트에서만 bare LaTeX 래핑
+function wrapBareLaTeX(segment: string): string {
+  let result = segment;
+  for (const pat of BARE_LATEX_PATTERNS) {
+    // 각 패턴마다 플래그를 초기화하여 전역 매칭 보장
+    const re = new RegExp(pat.source, pat.flags);
+    result = result.replace(re, (match) => `$${match}$`);
+  }
+  return result;
+}
+
 /**
  * AI가 반환하는 다양한 LaTeX 형식을 KaTeX 표준으로 정규화
+ * 1. \(...\) / \[...\] → $...$ / $$...$$
+ * 2. 기존 $...$/$$ 경계로 분리 후, 바깥 세그먼트만 bare LaTeX 자동 래핑
+ * 3. $ 앞뒤 불필요한 공백 제거
  */
 function preprocessMath(raw: string): string {
-  return raw
-    // \( ... \) → $ ... $  (인라인 LaTeX 변환, 줄바꿈 포함)
-    .replace(/\\\(([\s\S]+?)\\\)/g, (_m, inner) => `$${inner}$`)
-    // \[ ... \] → $$ ... $$  (블록 LaTeX 변환, 줄바꿈 포함)
-    .replace(/\\\[([\s\S]+?)\\\]/g, (_m, inner) => `\n$$${inner}$$\n`)
-    // 달러 기호 앞뒤 공백 정리 (렌더링 오류 방지)
-    .replace(/\$\s+/g, '$')
-    .replace(/\s+\$/g, '$')
-    // LaTeX 명령어가 $ 없이 노출된 경우 처리 (흔한 패턴)
-    .replace(/(?<!\$)(\\frac\{[^}]+\}\{[^}]+\})/g, '$$$1$$')
-    .replace(/(?<!\$)(\\sqrt\{[^}]+\})/g, '$$$1$$')
-    .replace(/(?<!\$)(\\sum_\{[^}]+\})/g, '$$$1$$')
-    .replace(/(?<!\$)(\\lim_\{[^}]+\})/g, '$$$1$$');
+  // Step 1: 델리미터 정규화
+  let text = raw
+    .replace(/\\\(\s*([\s\S]+?)\s*\\\)/g, (_m, inner) => `$${inner.trim()}$`)
+    .replace(/\\\[\s*([\s\S]+?)\s*\\\]/g, (_m, inner) => `\n$$\n${inner.trim()}\n$$\n`);
+
+  // Step 2: 기존 $...$, $$...$$ 세그먼트로 분리
+  // split with capturing group → 홀수 인덱스가 수식, 짝수가 일반 텍스트
+  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/);
+
+  text = parts
+    .map((part, i) => (i % 2 === 0 ? wrapBareLaTeX(part) : part))
+    .join('');
+
+  // Step 3: $ 앞뒤 공백 정리 (렌더링 오류 방지)
+  text = text
+    .replace(/\$\s+(?=\S)/g, '$')
+    .replace(/(?<=\S)\s+\$/g, '$');
+
+  return text;
 }
 
 export default function MathContent({ content, className = '' }: MathContentProps) {
@@ -37,8 +90,6 @@ export default function MathContent({ content, className = '' }: MathContentProp
     p: ({ children }) => (
       <p className="mb-2.5 last:mb-0 leading-[1.9]">{children}</p>
     ),
-    // 수식 블록 ($$...$$) — rehype-katex가 .math-display로 감싸줌
-    // 인라인 수식 ($...$) — .math-inline으로 감싸줌
     code: ({ children, className: codeClass }) => {
       const isInline = !codeClass?.includes('language-');
       if (isInline) {
@@ -105,14 +156,15 @@ export default function MathContent({ content, className = '' }: MathContentProp
             throwOnError: false,
             errorColor: '#cc4444',
             trust: true,
-            // 추가 매크로 지원
             macros: {
               '\\RR': '\\mathbb{R}',
               '\\NN': '\\mathbb{N}',
               '\\ZZ': '\\mathbb{Z}',
               '\\QQ': '\\mathbb{Q}',
-              '\\le': '\\leq',
-              '\\ge': '\\geq',
+              '\\CC': '\\mathbb{C}',
+              // 수능 자주 사용 매크로
+              '\\nCr': '\\binom{n}{r}',
+              '\\abs': '\\left|#1\\right|',
             },
           }],
         ]}
