@@ -7,7 +7,9 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "crawl": "node scripts/crawl-csat.mjs"
+    "crawl": "node scripts/crawl-csat.mjs all",
+    "crawl:suneung": "node scripts/crawl-csat.mjs suneung",
+    "crawl:mock": "node scripts/crawl-csat.mjs mock"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
