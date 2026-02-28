@@ -1,8 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// 무료 티어 할당량 고려 — 순서대로 시도
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-2.0-flash-lite'];
 
 const SUBJECT_HINTS: Record<string, string> = {
   수학: '수능 수학 문제입니다. 수식과 기호를 정확하게 인식하세요.',
@@ -13,28 +18,16 @@ const SUBJECT_HINTS: Record<string, string> = {
   기타: '시험 문제입니다.',
 };
 
-async function analyzeImageWithGemini(
-  base64: string,
-  mimeType: string,
-  subject: string
-): Promise<{
+type AnalysisResult = {
   rawText: string;
   formattedProblem: string;
   explanation: string;
   detectedSubject: string;
-}> {
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0.1,
-      maxOutputTokens: 4000,
-    },
-  });
+};
 
-  const subjectHint = SUBJECT_HINTS[subject] || SUBJECT_HINTS['기타'];
-
-  const prompt = `${subjectHint}
+function buildPrompt(subject: string): string {
+  const hint = SUBJECT_HINTS[subject] || SUBJECT_HINTS['기타'];
+  return `${hint}
 
 이미지에서 수능 문제를 분석하여 아래 JSON 형식으로 반환하세요.
 
@@ -51,20 +44,66 @@ async function analyzeImageWithGemini(
   "explanation": "단계별 상세 풀이 및 해설 (LaTeX 수식 적용, 정답 명시)",
   "detectedSubject": "수학 또는 영어 또는 국어 또는 사회 또는 과학 또는 기타"
 }`;
+}
 
-  const result = await model.generateContent([
-    {
-      inlineData: {
-        data: base64,
-        mimeType: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-      },
-    },
-    { text: prompt },
-  ]);
+// Gemini Vision으로 분석 (모델 자동 전환)
+async function analyzeWithGemini(base64: string, mimeType: string, subject: string): Promise<AnalysisResult> {
+  const prompt = buildPrompt(subject);
+  let lastError: Error | null = null;
 
-  const text = result.response.text();
-  const parsed = JSON.parse(text);
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+          maxOutputTokens: 4000,
+        },
+      });
 
+      const result = await model.generateContent([
+        { inlineData: { data: base64, mimeType: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' } },
+        { text: prompt },
+      ]);
+
+      const parsed = JSON.parse(result.response.text());
+      console.log(`[process-image] Gemini 성공: ${modelName}`);
+      return {
+        rawText: parsed.rawText || '',
+        formattedProblem: parsed.formattedProblem || parsed.rawText || '',
+        explanation: parsed.explanation || '해설을 생성할 수 없습니다.',
+        detectedSubject: parsed.detectedSubject || subject || '기타',
+      };
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      const is429 = lastError.message.includes('429') || lastError.message.includes('quota') || lastError.message.includes('Too Many Requests');
+      console.warn(`[process-image] Gemini ${modelName} 실패: ${is429 ? '할당량 초과' : lastError.message}`);
+      if (!is429) throw lastError; // 429 외 오류는 바로 throw
+    }
+  }
+  throw lastError; // 모든 Gemini 모델 실패
+}
+
+// GPT-4o Vision 폴백
+async function analyzeWithGPT4o(base64: string, mimeType: string, subject: string): Promise<AnalysisResult> {
+  const prompt = buildPrompt(subject);
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}`, detail: 'high' } },
+        { type: 'text', text: prompt },
+      ],
+    }],
+    response_format: { type: 'json_object' },
+    max_tokens: 4000,
+    temperature: 0.1,
+  });
+
+  const parsed = JSON.parse(response.choices[0].message.content || '{}');
+  console.log('[process-image] GPT-4o 폴백 성공');
   return {
     rawText: parsed.rawText || '',
     formattedProblem: parsed.formattedProblem || parsed.rawText || '',
@@ -75,13 +114,6 @@ async function analyzeImageWithGemini(
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { success: false, error: 'Gemini API 키가 설정되지 않았습니다. .env.local에 GEMINI_API_KEY를 추가하세요.' },
-        { status: 500 }
-      );
-    }
-
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const subject = (formData.get('subject') as string) || '기타';
@@ -96,13 +128,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '이미지 파일만 업로드 가능합니다.' }, { status: 400 });
     }
 
+    if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ success: false, error: 'AI API 키가 설정되지 않았습니다.' }, { status: 500 });
+    }
+
     const buffer = await file.arrayBuffer();
     const base64 = Buffer.from(buffer).toString('base64');
 
-    const { rawText, formattedProblem, explanation, detectedSubject } =
-      await analyzeImageWithGemini(base64, file.type, subject);
+    let result: AnalysisResult;
 
-    if (!rawText.trim() && !formattedProblem.trim()) {
+    // Gemini 먼저 시도, 실패하면 GPT-4o 폴백
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        result = await analyzeWithGemini(base64, file.type, subject);
+      } catch (geminiError) {
+        console.warn('[process-image] Gemini 전체 실패, GPT-4o 폴백 시도');
+        if (!process.env.OPENAI_API_KEY) throw geminiError;
+        result = await analyzeWithGPT4o(base64, file.type, subject);
+      }
+    } else {
+      result = await analyzeWithGPT4o(base64, file.type, subject);
+    }
+
+    if (!result.rawText.trim() && !result.formattedProblem.trim()) {
       return NextResponse.json(
         { success: false, error: '이미지에서 문제를 인식할 수 없습니다. 더 선명한 이미지를 사용해주세요.' },
         { status: 400 }
@@ -114,32 +162,30 @@ export async function POST(request: NextRequest) {
     try {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
-
       if (user) {
         const { data, error } = await supabase
           .from('questions')
           .insert({
             user_id: user.id,
-            ocr_text: formattedProblem,
-            ai_explanation: explanation,
-            subject: detectedSubject,
+            ocr_text: result.formattedProblem,
+            ai_explanation: result.explanation,
+            subject: result.detectedSubject,
           })
           .select('id')
           .single();
-
         if (!error && data) questionId = data.id;
       }
     } catch {
-      // DB 저장 실패 시 무시하고 계속 진행
+      // DB 저장 실패 시 무시
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        ocrText: rawText,
-        formattedProblem,
-        explanation,
-        subject: detectedSubject,
+        ocrText: result.rawText,
+        formattedProblem: result.formattedProblem,
+        explanation: result.explanation,
+        subject: result.detectedSubject,
         questionId,
       },
     });

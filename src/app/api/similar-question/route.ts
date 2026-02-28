@@ -1,42 +1,23 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { NextRequest, NextResponse } from 'next/server';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-8b', 'gemini-2.0-flash-lite'];
 
 export interface SimilarQuestion {
   problem: string;
   choices: string[];
-  answer: number;         // 1~5 (정답 번호)
+  answer: number;
   solution: string;
   keyConcepts: string[];
   wrongAnswerExplanation: string;
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { success: false, error: 'Gemini API 키가 설정되지 않았습니다.' },
-        { status: 500 }
-      );
-    }
-
-    const { problemText, subject } = await request.json();
-
-    if (!problemText) {
-      return NextResponse.json({ success: false, error: '문제 텍스트가 없습니다.' }, { status: 400 });
-    }
-
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      generationConfig: {
-        responseMimeType: 'application/json',
-        temperature: 0.7,
-        maxOutputTokens: 2500,
-      },
-    });
-
-    const prompt = `당신은 한국 수능 문제 출제 전문가입니다.
+function buildPrompt(problemText: string, subject: string): string {
+  return `당신은 한국 수능 문제 출제 전문가입니다.
 
 [원본 문제]
 ${problemText}
@@ -63,17 +44,83 @@ ${problemText}
   "keyConcepts": ["핵심 개념1", "핵심 개념2"],
   "wrongAnswerExplanation": "오답 함정 설명"
 }`;
+}
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const parsed = JSON.parse(text) as SimilarQuestion;
+function parseAndValidate(text: string): SimilarQuestion {
+  const parsed = JSON.parse(text) as SimilarQuestion;
+  if (!parsed.problem || !Array.isArray(parsed.choices) || parsed.choices.length !== 5) {
+    throw new Error('유사 문제 형식이 올바르지 않습니다.');
+  }
+  return parsed;
+}
 
-    // 유효성 검사
-    if (!parsed.problem || !Array.isArray(parsed.choices) || parsed.choices.length !== 5) {
-      throw new Error('유사 문제 형식이 올바르지 않습니다.');
+async function generateWithGemini(prompt: string): Promise<SimilarQuestion> {
+  let lastError: Error | null = null;
+
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.7,
+          maxOutputTokens: 2500,
+        },
+      });
+      const result = await model.generateContent(prompt);
+      const sq = parseAndValidate(result.response.text());
+      console.log(`[similar-question] Gemini 성공: ${modelName}`);
+      return sq;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      const is429 = lastError.message.includes('429') || lastError.message.includes('quota') || lastError.message.includes('Too Many Requests');
+      console.warn(`[similar-question] Gemini ${modelName} 실패: ${is429 ? '할당량 초과' : lastError.message}`);
+      if (!is429) throw lastError;
+    }
+  }
+  throw lastError;
+}
+
+async function generateWithGPT4o(prompt: string): Promise<SimilarQuestion> {
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content: prompt }],
+    response_format: { type: 'json_object' },
+    max_tokens: 2500,
+    temperature: 0.7,
+  });
+  const sq = parseAndValidate(response.choices[0].message.content || '{}');
+  console.log('[similar-question] GPT-4o 폴백 성공');
+  return sq;
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { problemText, subject } = await request.json();
+
+    if (!problemText) {
+      return NextResponse.json({ success: false, error: '문제 텍스트가 없습니다.' }, { status: 400 });
+    }
+    if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ success: false, error: 'AI API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, similarQuestion: parsed });
+    const prompt = buildPrompt(problemText, subject || '');
+    let similarQuestion: SimilarQuestion;
+
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        similarQuestion = await generateWithGemini(prompt);
+      } catch {
+        console.warn('[similar-question] Gemini 전체 실패, GPT-4o 폴백 시도');
+        if (!process.env.OPENAI_API_KEY) throw new Error('Gemini 할당량 초과 및 GPT-4o API 키 없음');
+        similarQuestion = await generateWithGPT4o(prompt);
+      }
+    } else {
+      similarQuestion = await generateWithGPT4o(prompt);
+    }
+
+    return NextResponse.json({ success: true, similarQuestion });
   } catch (error) {
     console.error('유사 문제 생성 오류:', error);
     const message = error instanceof Error ? error.message : '알 수 없는 오류';
