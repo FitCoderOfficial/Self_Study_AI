@@ -29,7 +29,8 @@ interface CsatProblem {
 }
 
 const SUBJECTS = ['전체', '수학', '영어', '국어', '사회', '과학'];
-const YEARS = [2025, 2024, 2023, 2022, 2021, 2020];
+// 학년도 기준 (2026학년도 = 2025년 11월 시행)
+const YEARS = [2026, 2025, 2024, 2023, 2022, 2021];
 const MONTHS: { label: string; value: number }[] = [
   { label: '수능 (11월)', value: 11 },
   { label: '9월 모의평가', value: 9 },
@@ -41,15 +42,25 @@ const DIFFICULTY_MAP: Record<string, { label: string; color: string }> = {
   hard: { label: '어려움', color: 'bg-red-100 text-red-700' },
 };
 
-/** KICE 온라인 시험지 뷰어 URL 생성 */
+/** KICE 공식 시험지 URL 맵 (학년도 기준, 확인된 URL만 등록) */
+const KICE_URLS: Record<number, Partial<Record<number, string>>> = {
+  2026: {
+    11: 'https://cdn.kice.re.kr/suneung-26/index.html',
+    9:  'https://www.suneung.re.kr/imsi/sumo2609/index.html',
+  },
+  2025: {
+    11: 'https://cdn.kice.re.kr/su-2025-neung/index.html',
+    9:  'https://www.kice.re.kr/imsi/2025mo09su/index.html',
+  },
+  2024: {
+    11: 'https://www.suneung.re.kr/imsi/20su24neung/',
+  },
+};
+
+const KICE_ARCHIVE = 'https://www.suneung.re.kr/boardCnts/list.do?boardID=1500234&m=0403&s=suneung';
+
 function getKiceViewerUrl(year: number, month: number): string {
-  const yy = String(year).slice(-2);
-  switch (month) {
-    case 11: return `https://cdn.kice.re.kr/20su${yy}neung/index.html`;
-    case 9:  return `https://cdn2.kice.re.kr/${year}mo09su/index.html`;
-    case 6:  return `https://cdn.kice.re.kr/mo6su${yy}/index.html`;
-    default: return `https://www.suneung.re.kr`;
-  }
+  return KICE_URLS[year]?.[month] ?? KICE_ARCHIVE;
 }
 
 export default function CsatPage() {
@@ -57,7 +68,7 @@ export default function CsatPage() {
   const [problems, setProblems] = useState<CsatProblem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedYear, setSelectedYear] = useState(2024);
+  const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedMonth, setSelectedMonth] = useState(11);
   const [selectedSubject, setSelectedSubject] = useState('전체');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -126,6 +137,7 @@ export default function CsatPage() {
 
   const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label || '';
   const kiceViewerUrl = getKiceViewerUrl(selectedYear, selectedMonth);
+  const isArchiveFallback = kiceViewerUrl === KICE_ARCHIVE;
 
   const selectClass = "px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer";
 
@@ -459,10 +471,12 @@ export default function CsatPage() {
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                      {selectedYear}년 {monthLabel}
+                      {selectedYear}학년도 {monthLabel}
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                      한국교육과정평가원 공식 시험지 (KICE)
+                      {isArchiveFallback
+                        ? '해당 연도의 직접 링크가 없습니다. KICE 기출문제 목록으로 이동합니다.'
+                        : '한국교육과정평가원(KICE) 공식 시험지'}
                     </p>
                   </div>
                   <a
@@ -472,14 +486,36 @@ export default function CsatPage() {
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    새 탭에서 보기
+                    {isArchiveFallback ? 'KICE 기출 목록 보기' : '새 탭에서 보기'}
                   </a>
                 </div>
               </CardContent>
             </Card>
 
-            {/* iframe 뷰어 */}
-            {!iframeError ? (
+            {/* 아카이브 폴백 안내 */}
+            {isArchiveFallback ? (
+              <Card className="dark:bg-gray-800 dark:border-gray-700 text-center py-12">
+                <CardContent>
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-700 dark:text-gray-200 text-lg font-medium mb-2">
+                    직접 임베드 링크가 없는 연도입니다
+                  </p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-md mx-auto">
+                    2024학년도 이하 6월 모평, 또는 링크가 확인되지 않은 시험의 경우<br />
+                    KICE 공식 기출문제 목록 페이지로 연결됩니다.
+                  </p>
+                  <a
+                    href={KICE_ARCHIVE}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    KICE 기출문제 목록 열기
+                  </a>
+                </CardContent>
+              </Card>
+            ) : !iframeError ? (
               <div className="relative w-full rounded-xl overflow-hidden border dark:border-gray-700 shadow-sm bg-white dark:bg-gray-800" style={{ height: '820px' }}>
                 <iframe
                   key={`${selectedYear}-${selectedMonth}`}
