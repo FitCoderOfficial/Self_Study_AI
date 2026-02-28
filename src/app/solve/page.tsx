@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Navigation from "@/components/Navigation";
 import AccessibilityFeatures from "@/components/AccessibilityFeatures";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Camera, Upload, FileImage, RotateCcw, CheckCircle, Sparkles, AlertCircle, Loader2, ChevronRight } from "lucide-react";
+import { Cloud, CloudUpload, ArrowRight, ImageIcon, AlertCircle, Loader2, Sparkles, RotateCcw, Bot, Lightbulb } from "lucide-react";
 import { StorageManager } from "@/lib/utils";
 
 // ─── 수능 과목 구조 정의 ───────────────────────────────────────────────────────
@@ -260,278 +258,197 @@ export default function SolvePage() {
   // ── 렌더링 ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-[#eff6ff]">
       <Navigation />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-4xl mx-auto px-4 py-10">
 
-        {/* 페이지 헤더 */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center px-4 py-2 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-sm font-medium mb-4">
-            <Sparkles className="w-4 h-4 mr-2" />
-            AI 기반 문제 풀이
+        {/* 페이지 제목 */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 text-blue-500 mb-3">
+            <Cloud className="w-8 h-8" />
+            <h1 className="text-3xl font-bold text-gray-900">수능 AI 문제 풀이</h1>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            문제 이미지 업로드
-          </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300">
-            문제 사진을 업로드하면 AI가 자동으로{' '}
-            <span className="font-semibold text-blue-600 dark:text-blue-400">텍스트 변환 + 해설</span>을 생성합니다
-          </p>
         </div>
 
-        <div className="space-y-6">
-
-          {/* ── 수능 과목 선택 ──────────────────────────────────────────────── */}
-          <Card className="shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">과목 선택 (선택사항)</CardTitle>
-              <CardDescription className="text-xs">
-                현재 선택:{' '}
-                <span className="font-medium text-blue-600 dark:text-blue-400">
-                  {getDisplayLabel(selectedGroupId, selectedSub)}
-                </span>
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-
-              {/* 1단계: 대분류 */}
-              <div className="flex flex-wrap gap-2">
-                {SUBJECT_GROUPS.map((group) => {
-                  const isActive = selectedGroupId === group.id;
-                  return (
-                    <button
-                      key={group.id}
-                      onClick={() => handleGroupSelect(group.id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                        isActive
-                          ? 'bg-blue-600 text-white shadow-md'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      <span>{group.emoji}</span>
-                      <span>{group.label}</span>
-                      {group.subSubjects && (
-                        <ChevronRight
-                          className={`w-3.5 h-3.5 transition-transform ${isActive ? 'rotate-90' : ''}`}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* 2단계: 세부 과목 (선택된 그룹에 하위 과목이 있을 때만) */}
-              {currentGroup.subSubjects && currentGroup.subSubjects.length > 0 && (
-                <div className="pl-3 pt-1 border-l-2 border-blue-200 dark:border-blue-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium uppercase tracking-wide">
-                    {currentGroup.emoji} {currentGroup.label} 세부 과목
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {currentGroup.subSubjects.map((sub) => {
-                      const isActive = selectedSub === sub;
-                      return (
-                        <button
-                          key={sub}
-                          onClick={() => handleSubSelect(sub)}
-                          className={`px-3 py-1 rounded-md text-sm transition-all ${
-                            isActive
-                              ? 'bg-blue-500 text-white font-medium shadow-sm'
-                              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400'
-                          }`}
-                        >
-                          {sub}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-            </CardContent>
-          </Card>
-
-          {/* ── 이미지 업로드 ───────────────────────────────────────────────── */}
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center text-xl">
-                <Camera className="mr-2 h-6 w-6 text-blue-600" />
-                문제 이미지
-              </CardTitle>
-              <CardDescription>
-                카메라로 촬영하거나 이미지 파일을 업로드하세요
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!selectedImage ? (
-                <div
-                  className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors cursor-pointer
-                    ${dragActive
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
-                      : 'border-gray-300 hover:border-blue-400 dark:border-gray-700 dark:hover:border-blue-500'
+        {/* 과목 선택 */}
+        <nav className="mb-8">
+          <ul className="flex flex-wrap justify-center gap-3">
+            {SUBJECT_GROUPS.map((group) => {
+              const isActive = selectedGroupId === group.id;
+              return (
+                <li key={group.id}>
+                  <button
+                    onClick={() => handleGroupSelect(group.id)}
+                    className={`flex items-center gap-2 px-6 h-12 font-bold rounded-xl border text-base transition-colors duration-200 ${
+                      isActive
+                        ? 'bg-blue-500 text-white border-blue-500 shadow-md'
+                        : 'bg-white text-gray-800 border-blue-100 hover:bg-blue-50 hover:border-blue-200'
                     }`}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <FileImage className="h-10 w-10 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    문제 이미지 업로드
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-2">
-                    클릭하거나 파일을 드래그하세요
-                  </p>
-                  <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-6">
-                    Ctrl+V로 클립보드 이미지 붙여넣기도 가능
-                  </p>
-
-                  {/* 선택된 과목 표시 */}
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 mb-5 rounded-full bg-blue-50 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-sm font-medium">
-                    <span>{currentGroup.emoji}</span>
-                    <span>{getDisplayLabel(selectedGroupId, selectedSub)}</span>
-                  </div>
-
-                  <div>
-                    <Button variant="outline" size="lg" className="pointer-events-none">
-                      <Upload className="mr-2 h-5 w-5" />
-                      파일 선택
-                    </Button>
-                  </div>
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
-                    JPG, PNG, GIF 지원 (최대 10MB)
-                  </p>
-                  {error && (
-                    <p className="text-red-500 text-sm mt-3 flex items-center justify-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {error}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* 이미지 미리보기 */}
-                  <div className="relative max-w-2xl mx-auto">
-                    <Image
-                      src={selectedImage}
-                      alt="업로드된 문제"
-                      width={800}
-                      height={600}
-                      className="w-full h-auto max-h-[500px] object-contain rounded-xl border shadow-sm"
-                      unoptimized
-                    />
-                    <Button
-                      onClick={resetProcess}
-                      size="sm"
-                      variant="outline"
-                      disabled={isProcessing}
-                      className="absolute top-3 right-3 bg-white/90 dark:bg-gray-800/90 rounded-full"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* 선택 과목 배지 */}
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/50 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 text-sm font-medium">
-                      {currentGroup.emoji} {getDisplayLabel(selectedGroupId, selectedSub)}
-                    </span>
-                    <span className="text-xs text-gray-400">과목으로 분석합니다</span>
-                  </div>
-
-                  {/* 에러 표시 */}
-                  {error && (
-                    <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      {error}
-                    </div>
-                  )}
-
-                  {/* 처리 진행 상태 */}
-                  {isProcessing && processingStep && (
-                    <div className="flex items-center justify-center gap-3 py-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                      <span className="text-blue-700 dark:text-blue-300 font-medium">{processingStep}</span>
-                    </div>
-                  )}
-
-                  {/* 분석 버튼 */}
-                  <Button
-                    onClick={handleAnalyze}
-                    disabled={isProcessing || !selectedFile}
-                    className="w-full h-14 text-lg font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl shadow-lg"
                   >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="animate-spin h-5 w-5 mr-3" />
-                        AI 분석 중...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-5 w-5 mr-3" />
-                        AI로 문제 분석 + 해설 받기
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    <span className="text-lg">{group.emoji}</span>
+                    {group.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
 
-          {/* ── AI 분석 과정 안내 ────────────────────────────────────────────── */}
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center text-lg">
-                <CheckCircle className="mr-2 h-5 w-5 text-green-600" />
-                AI 분석 과정
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-3 gap-4 text-center">
-                {[
-                  {
-                    step: '1',
-                    icon: '🔍',
-                    title: '이미지 분석',
-                    desc: 'Gemini Vision AI로 이미지 분석 및 수식 포함 정확한 텍스트 추출',
-                  },
-                  {
-                    step: '2',
-                    icon: '🤖',
-                    title: 'AI 해설 생성',
-                    desc: 'GPT-4o가 문제를 분석하고 단계별 해설 제공',
-                  },
-                  {
-                    step: '3',
-                    icon: '📚',
-                    title: '히스토리 저장',
-                    desc: '분석 결과가 학습 히스토리에 자동 저장',
-                  },
-                ].map(({ step, icon, title, desc }) => (
-                  <div key={step} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <div className="text-2xl mb-2">{icon}</div>
-                    <div className="font-semibold text-gray-900 dark:text-gray-100 mb-1">{title}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">{desc}</div>
-                  </div>
-                ))}
+          {/* 2단계 세부과목 */}
+          {currentGroup.subSubjects && currentGroup.subSubjects.length > 0 && (
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {currentGroup.subSubjects.map((sub) => {
+                const isActive = selectedSub === sub;
+                return (
+                  <button
+                    key={sub}
+                    onClick={() => handleSubSelect(sub)}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+                      isActive
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                    }`}
+                  >
+                    {sub}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </nav>
+
+        {/* 업로드 영역 */}
+        {!selectedImage ? (
+          <section
+            className={`w-full bg-white rounded-[2.5rem] py-20 px-8 border-4 border-dashed flex flex-col items-center justify-center text-center transition-colors cursor-pointer mb-12 ${
+              dragActive ? 'border-blue-500 bg-blue-50/20' : 'border-blue-300 hover:bg-blue-50/10'
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <div className="flex items-center gap-4 text-6xl mb-6">
+              <CloudUpload className="w-16 h-16 text-blue-500" />
+              <ArrowRight className="w-10 h-10 text-gray-300" />
+              <ImageIcon className="w-16 h-16 text-gray-300" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">문제 이미지 업로드</h2>
+            <p className="text-gray-500 mb-8 max-w-md">
+              여기에 파일을 드래그하거나 클릭하여 업로드하세요<br />
+              (JPG, PNG, GIF) · Ctrl+V 붙여넣기 지원
+            </p>
+            {/* 선택 과목 표시 */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 mb-6 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium">
+              <span>{currentGroup.emoji}</span>
+              <span>{getDisplayLabel(selectedGroupId, selectedSub)}</span>
+            </div>
+            <button
+              className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-12 rounded-lg shadow-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+            >
+              파일 선택
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            {error && (
+              <p className="text-red-500 text-sm mt-4 flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </p>
+            )}
+          </section>
+        ) : (
+          /* 이미지 선택된 상태 */
+          <section className="w-full bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm mb-12">
+            <div className="relative max-w-2xl mx-auto mb-6">
+              <Image
+                src={selectedImage}
+                alt="업로드된 문제"
+                width={800}
+                height={600}
+                className="w-full h-auto max-h-[500px] object-contain rounded-xl border shadow-sm"
+                unoptimized
+              />
+              <button
+                onClick={resetProcess}
+                disabled={isProcessing}
+                className="absolute top-3 right-3 bg-white/90 border border-gray-200 rounded-full px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <RotateCcw className="w-4 h-4 inline mr-1" />다시 선택
+              </button>
+            </div>
+
+            {/* 선택 과목 */}
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium">
+                {currentGroup.emoji} {getDisplayLabel(selectedGroupId, selectedSub)}
+              </span>
+              <span className="text-xs text-gray-400">과목으로 분석합니다</span>
+            </div>
+
+            {/* 에러 */}
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {error}
               </div>
-            </CardContent>
-          </Card>
+            )}
 
-        </div>
+            {/* 처리 상태 */}
+            {isProcessing && processingStep && (
+              <div className="flex items-center justify-center gap-3 py-3 bg-blue-50 rounded-lg mb-4">
+                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                <span className="text-blue-700 font-medium">{processingStep}</span>
+              </div>
+            )}
+
+            {/* 분석 버튼 */}
+            <button
+              onClick={handleAnalyze}
+              disabled={isProcessing || !selectedFile}
+              className="w-full h-14 text-lg font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {isProcessing ? (
+                <><Loader2 className="w-5 h-5 animate-spin" />AI 분석 중...</>
+              ) : (
+                <><Sparkles className="w-5 h-5" />AI로 문제 분석 + 해설 받기</>
+              )}
+            </button>
+          </section>
+        )}
+
+        {/* 이용 방법 섹션 */}
+        <section className="w-full text-center pb-12">
+          <div className="mb-10">
+            <span className="block text-sm font-semibold text-gray-400 tracking-wider mb-2">How it Works</span>
+            <h2 className="text-4xl font-extrabold text-gray-900">이용 방법</h2>
+          </div>
+          <div className="relative flex flex-col md:flex-row justify-between items-start max-w-3xl mx-auto">
+            {/* 연결선 */}
+            <div className="absolute top-12 left-0 w-full h-px bg-gray-200 hidden md:block" style={{ zIndex: 0 }} />
+            {[
+              { icon: CloudUpload, label: '1. 문제 업로드' },
+              { icon: Bot, label: '2. AI 분석 및 변환' },
+              { icon: Lightbulb, label: '3. 해설 및 유사 문제 받기' },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="relative flex flex-col items-center w-full md:w-1/3 z-10 mb-8 md:mb-0">
+                <div className="w-24 h-24 rounded-full bg-white border-4 border-blue-100 flex items-center justify-center mb-6 shadow-sm">
+                  <Icon className="w-10 h-10 text-blue-500" />
+                </div>
+                <p className="text-lg font-bold text-gray-900">{label}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
       </main>
-
       <AccessibilityFeatures />
     </div>
   );
