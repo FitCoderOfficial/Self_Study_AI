@@ -15,6 +15,8 @@ import {
   Search, ChevronDown, ChevronUp, Trash2, Tag, Pencil, X, Check, Plus, Eye, EyeOff,
 } from "lucide-react";
 import type { SimilarQuestion } from "@/app/api/similar-question/route";
+import NotionExportButton from "@/components/NotionExportButton";
+import PdfExportButton from "@/components/PdfExportButton";
 
 interface ArchiveItem {
   id: string;
@@ -22,6 +24,7 @@ interface ArchiveItem {
   subject: string;
   question: string;       // full text including ①②③④⑤ choices
   explanation?: string;
+  imageUrl?: string;
   date: string;
   isCorrect: boolean | null;
   difficulty: string;
@@ -121,6 +124,7 @@ export default function ArchivePage() {
             subject: q.subject || '기타',
             question: q.ocr_text || '',
             explanation: q.ai_explanation,
+            imageUrl: q.image_url ?? undefined,
             date: new Date(q.created_at).toISOString().split('T')[0],
             isCorrect: q.is_correct,
             difficulty: q.difficulty || 'medium',
@@ -330,7 +334,7 @@ export default function ArchivePage() {
                     className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                       selectedSubject === s
                         ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
                     {s}
@@ -536,12 +540,24 @@ export default function ArchivePage() {
                         }
                       </button>
                       <div className="flex items-center gap-1 ml-auto">
+                        {isLoggedIn && (item.questionId || item.id) && (
+                          <>
+                            <PdfExportButton
+                              questionId={item.questionId || item.id}
+                              mode="icon"
+                            />
+                            <NotionExportButton
+                              questionId={item.questionId || item.id}
+                              mode="icon"
+                            />
+                          </>
+                        )}
                         <button
                           onClick={() => setEditDialog({ id: item.id, subject: item.subject, score: item.score?.toString() ?? '' })}
-                          className="flex items-center gap-1 px-2.5 py-1.5 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors text-xs font-medium"
+                          className="flex items-center p-1.5 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                          title="수정"
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                          수정
                         </button>
                         <button
                           onClick={() => handleDelete(item.id)}
@@ -557,39 +573,53 @@ export default function ArchivePage() {
                   {isExpanded && (
                     <div className="border-t dark:border-gray-700 px-6 py-6 space-y-7">
 
-                      {/* 원본 문제 */}
+                      {/* 원본 문제: 이미지(좌) + 텍스트(우) */}
                       <section>
                         <h4 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">문제</h4>
-                        <div className="bg-white dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 p-5">
-                          <MathContent content={stem} className="text-gray-900 dark:text-gray-100 text-base leading-relaxed" />
-                        </div>
+                        <div className={`${item.imageUrl ? 'grid md:grid-cols-2 gap-4' : ''}`}>
+                          {/* 원본 이미지 */}
+                          {item.imageUrl && (
+                            <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/30">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={item.imageUrl}
+                                alt="원본 문제 이미지"
+                                className="w-full h-auto object-contain max-h-80"
+                              />
+                            </div>
+                          )}
+                          {/* 문제 텍스트 */}
+                          <div className="bg-white dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 p-5">
+                            <MathContent content={stem} className="text-gray-900 dark:text-gray-100 text-base leading-relaxed" />
 
-                        {/* 선택지 카드 */}
-                        {choices.length > 0 && (
-                          <div className="mt-3 space-y-2">
-                            {multi && (
-                              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                                복수 선택 가능 (모두 선택하세요)
-                              </p>
+                            {/* 선택지 카드 */}
+                            {choices.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                {multi && (
+                                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                    복수 선택 가능 (모두 선택하세요)
+                                  </p>
+                                )}
+                                {choices.map((choice, i) => {
+                                  const isSelected = origSelected.includes(i);
+                                  return (
+                                    <button
+                                      key={i}
+                                      onClick={() => toggleChoice(origKey, i, multi)}
+                                      className={`w-full text-left px-4 py-3.5 rounded-xl border-2 text-sm transition-all ${
+                                        isSelected
+                                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100 font-medium'
+                                          : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-600'
+                                      }`}
+                                    >
+                                      <MathContent content={choice} className="leading-relaxed" />
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             )}
-                            {choices.map((choice, i) => {
-                              const isSelected = origSelected.includes(i);
-                              return (
-                                <button
-                                  key={i}
-                                  onClick={() => toggleChoice(origKey, i, multi)}
-                                  className={`w-full text-left px-4 py-3.5 rounded-xl border-2 text-sm transition-all ${
-                                    isSelected
-                                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100 font-medium'
-                                      : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-600'
-                                  }`}
-                                >
-                                  <MathContent content={choice} className="leading-relaxed" />
-                                </button>
-                              );
-                            })}
                           </div>
-                        )}
+                        </div>
                       </section>
 
                       {/* AI 해설 (블러 스포일러) */}

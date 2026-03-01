@@ -22,11 +22,12 @@ export async function GET(request: NextRequest) {
     };
 
     // zip_files 컬럼 포함 시도, 없으면 기본 컬럼만
-    let { data, error } = await buildQuery(
+    const { data: firstData, error: firstError } = await buildQuery(
       'year, month, subject, pdf_url, answer_url, zip_files, answer_zip_files'
     );
+    let data = firstData;
 
-    if (error) {
+    if (firstError) {
       // zip_files 컬럼이 아직 없는 경우 fallback
       const fallback = await buildQuery('year, month, subject, pdf_url, answer_url');
       if (fallback.error) throw fallback.error;

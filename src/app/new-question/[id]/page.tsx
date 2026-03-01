@@ -14,6 +14,8 @@ import {
   BookOpen, Sparkles, CheckCircle, Tag, RefreshCw, ChevronDown, ChevronUp, Hash, Star
 } from 'lucide-react';
 import type { SimilarQuestion } from '@/app/api/similar-question/route';
+import NotionExportButton from '@/components/NotionExportButton';
+import PdfExportButton from '@/components/PdfExportButton';
 
 interface ProcessedResult {
   id: string;
@@ -429,19 +431,20 @@ export default function NewQuestionPage() {
         </div>
 
         {/* 하단 액션 버튼 */}
-        <div className="grid md:grid-cols-3 gap-4 mt-6">
+        <div className="grid md:grid-cols-4 gap-4 mt-6">
           <Button onClick={handleSaveToArchive} className="h-11 bg-blue-600 hover:bg-blue-700 text-white">
             <BookOpen className="w-4 h-4 mr-2" />
             히스토리에 저장
           </Button>
+          {result.questionId && (
+            <PdfExportButton questionId={result.questionId} mode="button" />
+          )}
+          {result.questionId && (
+            <NotionExportButton questionId={result.questionId} mode="button" />
+          )}
           <Link href="/solve">
             <Button variant="outline" className="w-full h-11 dark:border-gray-600 dark:text-gray-300">
               새로운 문제 풀기
-            </Button>
-          </Link>
-          <Link href="/archive">
-            <Button variant="outline" className="w-full h-11 dark:border-gray-600 dark:text-gray-300">
-              학습 히스토리
             </Button>
           </Link>
         </div>

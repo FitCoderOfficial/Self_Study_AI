@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Navigation from "@/components/Navigation";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
-import { TrendingUp, Edit3, Save, X, Loader2 } from "lucide-react";
+import { TrendingUp, Edit3, Save, X, Loader2, Camera, School } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
+import NotionSetup from "@/components/NotionSetup";
 
 interface QuestionRow {
   subject: string;
@@ -85,12 +86,17 @@ function heatColor(count: number): string {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [name, setName] = useState('');
+  const [school, setSchool] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [editName, setEditName] = useState('');
+  const [editSchool, setEditSchool] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [rows, setRows] = useState<QuestionRow[]>([]);
 
   useEffect(() => {
@@ -99,6 +105,20 @@ export default function ProfilePage() {
       if (!user) { router.push('/login?next=/profile'); return; }
       setUser(user);
       setName(user.user_metadata?.name || user.email?.split('@')[0] || '사용자');
+
+      // 프로필 정보 조회 (school, avatar_url 포함)
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('name, school, avatar_url')
+          .eq('id', user.id)
+          .single();
+        if (profile) {
+          if (profile.name) setName(profile.name);
+          if (profile.school) setSchool(profile.school);
+          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+        }
+      } catch { /* ignore */ }
 
       try {
         const { data } = await supabase
@@ -156,17 +176,63 @@ export default function ProfilePage() {
     };
   }, [rows]);
 
-  const handleSaveName = async () => {
-    if (!user || !editName.trim()) return;
+  const handleSaveProfile = async () => {
+    if (!user) return;
     setIsSaving(true);
     try {
       const supabase = createClient();
-      await supabase.auth.updateUser({ data: { name: editName.trim() } });
-      await supabase.from('profiles').update({ name: editName.trim() }).eq('id', user.id);
-      setName(editName.trim());
+      const trimmedName = editName.trim() || name;
+      await supabase.auth.updateUser({ data: { name: trimmedName } });
+      await supabase.from('profiles').update({
+        name: trimmedName,
+        school: editSchool.trim(),
+      }).eq('id', user.id);
+      setName(trimmedName);
+      setSchool(editSchool.trim());
       setIsEditOpen(false);
     } catch (err) { console.error(err); }
     finally { setIsSaving(false); }
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('이미지 크기는 5MB 이하여야 합니다.');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const supabase = createClient();
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `${user.id}/avatar.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, contentType: file.type });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(path);
+
+      // 캐시 버스팅 쿼리 추가
+      const urlWithCache = `${publicUrl}?t=${Date.now()}`;
+      await supabase.from('profiles').update({ avatar_url: urlWithCache }).eq('id', user.id);
+      setAvatarUrl(urlWithCache);
+    } catch (err) {
+      console.error('아바타 업로드 오류:', err);
+      alert('이미지 업로드에 실패했습니다. Supabase Storage avatars 버킷을 확인해주세요.');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   if (isLoading) return (
@@ -195,17 +261,52 @@ export default function ProfilePage() {
 
             {/* 프로필 카드 */}
             <article className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-gray-700">
+              {/* 숨겨진 파일 입력 */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
+
               <div className="flex items-center gap-5">
-                <Avatar className="w-20 h-20 shrink-0">
-                  <AvatarFallback className="bg-blue-500 text-white text-2xl font-bold">
-                    {name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{name}</h2>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm mb-3">{user?.email}</p>
-                  {/* 진행바 - 풀이 수 기반 */}
-                  <div className="flex items-center gap-3">
+                {/* 클릭 가능한 아바타 */}
+                <div className="relative shrink-0 group">
+                  <button
+                    onClick={handleAvatarClick}
+                    disabled={isUploadingAvatar}
+                    className="relative w-20 h-20 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  >
+                    <Avatar className="w-20 h-20">
+                      {avatarUrl ? (
+                        <AvatarImage src={avatarUrl} alt={name} />
+                      ) : null}
+                      <AvatarFallback className="bg-blue-500 text-white text-2xl font-bold">
+                        {name.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* 호버 오버레이 */}
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                      {isUploadingAvatar
+                        ? <Loader2 className="w-5 h-5 text-white animate-spin" />
+                        : <Camera className="w-5 h-5 text-white" />
+                      }
+                    </div>
+                  </button>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white truncate">{name}</h2>
+                  {school && (
+                    <p className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-sm mt-0.5">
+                      <School className="w-3.5 h-3.5 shrink-0" />
+                      {school}
+                    </p>
+                  )}
+                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1 truncate">{user?.email}</p>
+                  {/* 진행바 */}
+                  <div className="flex items-center gap-3 mt-3">
                     <div className="flex-1 bg-slate-100 dark:bg-gray-700 rounded-full h-2.5">
                       <div
                         className="bg-blue-500 h-2.5 rounded-full transition-all"
@@ -218,12 +319,17 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </div>
-              {/* 이름 수정 버튼 */}
+
+              {/* 프로필 수정 버튼 */}
               <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-full mt-4 text-xs border-slate-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                    onClick={() => setEditName(name)}>
-                    <Edit3 className="w-3.5 h-3.5 mr-1.5" />이름 수정
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-4 text-xs border-slate-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                    onClick={() => { setEditName(name); setEditSchool(school); }}
+                  >
+                    <Edit3 className="w-3.5 h-3.5 mr-1.5" />프로필 수정
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="dark:bg-gray-800 dark:border-gray-700">
@@ -231,10 +337,26 @@ export default function ProfilePage() {
                   <div className="space-y-4 py-2">
                     <div className="space-y-2">
                       <Label className="dark:text-gray-200">이름</Label>
-                      <Input value={editName} onChange={e => setEditName(e.target.value)} className="dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                      <Input
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        placeholder="이름을 입력하세요"
+                        className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="dark:text-gray-200 flex items-center gap-1.5">
+                        <School className="w-3.5 h-3.5" />학교
+                      </Label>
+                      <Input
+                        value={editSchool}
+                        onChange={e => setEditSchool(e.target.value)}
+                        placeholder="ex) ○○고등학교"
+                        className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      />
                     </div>
                     <div className="flex gap-2">
-                      <Button onClick={handleSaveName} disabled={isSaving} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white">
+                      <Button onClick={handleSaveProfile} disabled={isSaving} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white">
                         {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />저장</>}
                       </Button>
                       <Button variant="outline" onClick={() => setIsEditOpen(false)} className="flex-1 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
@@ -273,6 +395,9 @@ export default function ProfilePage() {
                 <div className="text-lg">🔥</div>
               </div>
             </div>
+
+            {/* Notion 연동 */}
+            {user && <NotionSetup userId={user.id} />}
 
             {/* 과목별 성취도 */}
             <article className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-gray-700 flex-grow">
