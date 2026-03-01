@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, Camera, BookOpen, User, LogOut, GraduationCap } from "lucide-react";
+import { Menu, X, Camera, BookOpen, User, LogOut, GraduationCap, CreditCard } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export function Navigation() {
@@ -88,6 +88,13 @@ export function Navigation() {
             >
               <BookOpen className="w-4 h-4" />
               <span>학습 히스토리</span>
+            </Link>
+            <Link
+              href="/pricing"
+              className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center space-x-1"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>요금제</span>
             </Link>
 
             <div className="flex items-center space-x-2">
@@ -177,6 +184,13 @@ export function Navigation() {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 <BookOpen className="w-4 h-4" /> 학습 히스토리
+              </Link>
+              <Link
+                href="/pricing"
+                className="text-gray-700 dark:text-gray-300 hover:text-blue-600 flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <CreditCard className="w-4 h-4" /> 요금제
               </Link>
 
               {user ? (
